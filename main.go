@@ -104,28 +104,64 @@ func getLastCommitMessage() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func drawMessages(messages []string, selected int) {
+func drawMessages(messages []string, selected int, showEditPrompt bool) {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+	// Draw title
+	title := "Select a commit message:"
+	for i, ch := range title {
+		termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
+	}
 
 	// Draw messages
 	for i, msg := range messages {
 		fg := termbox.ColorDefault
+		bg := termbox.ColorDefault
 		if i == selected {
-			fg = termbox.ColorGreen
+			fg = termbox.ColorBlack
+			bg = termbox.ColorGreen
 		}
+		// Add bullet point
+		bullet := "•"
+		if i == selected {
+			bullet = "→"
+		}
+		termbox.SetCell(2, i+2, []rune(bullet)[0], fg, bg)
+		// Draw message
 		for j, ch := range msg {
-			termbox.SetCell(j, i, ch, fg, termbox.ColorDefault)
+			termbox.SetCell(j+4, i+2, ch, fg, bg)
 		}
 	}
 
 	// Draw custom message option
 	fg := termbox.ColorDefault
+	bg := termbox.ColorDefault
 	if selected == len(messages) {
-		fg = termbox.ColorGreen
+		fg = termbox.ColorBlack
+		bg = termbox.ColorGreen
 	}
 	customMsg := "Edit custom message"
+	bullet := "•"
+	if selected == len(messages) {
+		bullet = "→"
+	}
+	termbox.SetCell(2, len(messages)+2, []rune(bullet)[0], fg, bg)
 	for j, ch := range customMsg {
-		termbox.SetCell(j, len(messages), ch, fg, termbox.ColorDefault)
+		termbox.SetCell(j+4, len(messages)+2, ch, fg, bg)
+	}
+
+	// Draw instructions
+	instructions := "↑↓: Move  Enter: Select  Esc: Cancel"
+	for i, ch := range instructions {
+		termbox.SetCell(i, len(messages)+4, ch, termbox.ColorCyan, termbox.ColorDefault)
+	}
+
+	// Draw edit prompt if needed
+	if showEditPrompt {
+		prompt := "Edit message (press Enter to confirm):"
+		for i, ch := range prompt {
+			termbox.SetCell(i, len(messages)+6, ch, termbox.ColorYellow, termbox.ColorDefault)
+		}
 	}
 
 	termbox.Flush()
@@ -139,7 +175,7 @@ func getUserChoice(messages []string) (string, error) {
 	defer termbox.Close()
 
 	selected := 0
-	drawMessages(messages, selected)
+	drawMessages(messages, selected, false)
 
 	for {
 		switch ev := termbox.PollEvent(); ev.Type {
@@ -148,23 +184,31 @@ func getUserChoice(messages []string) (string, error) {
 			case termbox.KeyArrowUp:
 				if selected > 0 {
 					selected--
-					drawMessages(messages, selected)
+					drawMessages(messages, selected, false)
 				}
 			case termbox.KeyArrowDown:
 				if selected < len(messages) {
 					selected++
-					drawMessages(messages, selected)
+					drawMessages(messages, selected, false)
 				}
 			case termbox.KeyEnter:
 				termbox.Close()
 				if selected == len(messages) {
 					// Custom message input
-					fmt.Print("Message: ")
+					fmt.Print("\033[33mMessage: \033[0m")
 					var customMsg string
 					fmt.Scanln(&customMsg)
 					return customMsg, nil
 				}
-				return messages[selected], nil
+
+				// Show edit prompt for selected message
+				fmt.Printf("\033[33mEdit message (press Enter to keep as is): \033[0m%s", messages[selected])
+				var editedMsg string
+				fmt.Scanln(&editedMsg)
+				if editedMsg == "" {
+					return messages[selected], nil
+				}
+				return editedMsg, nil
 			case termbox.KeyEsc:
 				termbox.Close()
 				return "", fmt.Errorf("selection cancelled")
