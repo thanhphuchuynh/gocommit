@@ -24,6 +24,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
+	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/rivo/tview v0.0.0-20250330220935-949945f8d922 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	go.opencensus.io v0.24.0 // indirect

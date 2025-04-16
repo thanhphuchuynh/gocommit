@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
-	"github.com/rivo/tview"
+	"github.com/nsf/termbox-go"
 	"google.golang.org/api/option"
 )
 
@@ -104,57 +104,75 @@ func getLastCommitMessage() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func getUserChoice(messages []string) (string, error) {
-	app := tview.NewApplication()
+func drawMessages(messages []string, selected int) {
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 
-	// Create a simple list for the messages
-	list := tview.NewList().
-		ShowSecondaryText(false)
-
-	// Add messages to the list
-	for _, msg := range messages {
-		list.AddItem(msg, "", 0, nil)
+	// Draw messages
+	for i, msg := range messages {
+		fg := termbox.ColorDefault
+		if i == selected {
+			fg = termbox.ColorGreen
+		}
+		for j, ch := range msg {
+			termbox.SetCell(j, i, ch, fg, termbox.ColorDefault)
+		}
 	}
 
-	// Add custom edit option
-	list.AddItem("Edit custom message", "", 0, nil)
+	// Draw custom message option
+	fg := termbox.ColorDefault
+	if selected == len(messages) {
+		fg = termbox.ColorGreen
+	}
+	customMsg := "Edit custom message"
+	for j, ch := range customMsg {
+		termbox.SetCell(j, len(messages), ch, fg, termbox.ColorDefault)
+	}
 
-	var selectedMessage string
+	termbox.Flush()
+}
 
-	// Set up the list's selected function
-	list.SetSelectedFunc(func(index int, mainText string, secondaryText string, shortcut rune) {
-		if index == len(messages) { // Custom edit option
-			app.Stop()
-			// Create a simple input field for custom message
-			inputField := tview.NewInputField().
-				SetLabel("Message: ")
-
-			form := tview.NewForm().
-				AddFormItem(inputField).
-				AddButton("OK", func() {
-					selectedMessage = inputField.GetText()
-					app.Stop()
-				})
-
-			if err := tview.NewApplication().SetRoot(form, true).Run(); err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			selectedMessage = messages[index]
-			app.Stop()
-		}
-	})
-
-	// Run the application
-	if err := app.SetRoot(list, true).Run(); err != nil {
+func getUserChoice(messages []string) (string, error) {
+	err := termbox.Init()
+	if err != nil {
 		return "", err
 	}
+	defer termbox.Close()
 
-	if selectedMessage == "" {
-		return "", fmt.Errorf("no message selected")
+	selected := 0
+	drawMessages(messages, selected)
+
+	for {
+		switch ev := termbox.PollEvent(); ev.Type {
+		case termbox.EventKey:
+			switch ev.Key {
+			case termbox.KeyArrowUp:
+				if selected > 0 {
+					selected--
+					drawMessages(messages, selected)
+				}
+			case termbox.KeyArrowDown:
+				if selected < len(messages) {
+					selected++
+					drawMessages(messages, selected)
+				}
+			case termbox.KeyEnter:
+				termbox.Close()
+				if selected == len(messages) {
+					// Custom message input
+					fmt.Print("Message: ")
+					var customMsg string
+					fmt.Scanln(&customMsg)
+					return customMsg, nil
+				}
+				return messages[selected], nil
+			case termbox.KeyEsc:
+				termbox.Close()
+				return "", fmt.Errorf("selection cancelled")
+			}
+		case termbox.EventError:
+			return "", ev.Err
+		}
 	}
-
-	return selectedMessage, nil
 }
 
 func main() {
