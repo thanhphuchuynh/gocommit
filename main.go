@@ -167,6 +167,89 @@ func drawMessages(messages []string, selected int, showEditPrompt bool) {
 	termbox.Flush()
 }
 
+func editMessage(initialMsg string) (string, error) {
+	err := termbox.Init()
+	if err != nil {
+		return "", err
+	}
+	defer termbox.Close()
+
+	// Clear screen and show edit prompt
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+	// Draw title
+	title := "Edit commit message (press Enter to confirm, Esc to cancel):"
+	for i, ch := range title {
+		termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
+	}
+
+	// Draw initial message
+	for i, ch := range initialMsg {
+		termbox.SetCell(i, 2, ch, termbox.ColorDefault, termbox.ColorDefault)
+	}
+
+	termbox.Flush()
+
+	// Set cursor position
+	termbox.SetCursor(len(initialMsg), 2)
+	termbox.Flush()
+
+	// Buffer for the edited message
+	editedMsg := []rune(initialMsg)
+	cursorPos := len(editedMsg)
+
+	for {
+		switch ev := termbox.PollEvent(); ev.Type {
+		case termbox.EventKey:
+			switch ev.Key {
+			case termbox.KeyEnter:
+				return string(editedMsg), nil
+			case termbox.KeyEsc:
+				return "", fmt.Errorf("edit cancelled")
+			case termbox.KeyBackspace, termbox.KeyBackspace2:
+				if cursorPos > 0 {
+					editedMsg = append(editedMsg[:cursorPos-1], editedMsg[cursorPos:]...)
+					cursorPos--
+				}
+			case termbox.KeyDelete:
+				if cursorPos < len(editedMsg) {
+					editedMsg = append(editedMsg[:cursorPos], editedMsg[cursorPos+1:]...)
+				}
+			case termbox.KeyArrowLeft:
+				if cursorPos > 0 {
+					cursorPos--
+				}
+			case termbox.KeyArrowRight:
+				if cursorPos < len(editedMsg) {
+					cursorPos++
+				}
+			case termbox.KeySpace:
+				editedMsg = append(editedMsg[:cursorPos], append([]rune{' '}, editedMsg[cursorPos:]...)...)
+				cursorPos++
+			default:
+				if ev.Ch != 0 {
+					editedMsg = append(editedMsg[:cursorPos], append([]rune{ev.Ch}, editedMsg[cursorPos:]...)...)
+					cursorPos++
+				}
+			}
+
+			// Redraw the message
+			termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+			for i, ch := range title {
+				termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
+			}
+			for i, ch := range editedMsg {
+				termbox.SetCell(i, 2, ch, termbox.ColorDefault, termbox.ColorDefault)
+			}
+			termbox.SetCursor(cursorPos, 2)
+			termbox.Flush()
+
+		case termbox.EventError:
+			return "", ev.Err
+		}
+	}
+}
+
 func getUserChoice(messages []string) (string, error) {
 	err := termbox.Init()
 	if err != nil {
@@ -195,18 +278,35 @@ func getUserChoice(messages []string) (string, error) {
 				termbox.Close()
 				if selected == len(messages) {
 					// Custom message input
-					fmt.Print("\033[33mMessage: \033[0m")
-					var customMsg string
-					fmt.Scanln(&customMsg)
-					return customMsg, nil
+					msg, err := editMessage("")
+					if err != nil {
+						if err.Error() == "edit cancelled" {
+							// Reopen the selection screen if edit was cancelled
+							err = termbox.Init()
+							if err != nil {
+								return "", err
+							}
+							drawMessages(messages, selected, false)
+							continue
+						}
+						return "", err
+					}
+					return msg, nil
 				}
 
-				// Show edit prompt for selected message
-				fmt.Printf("\033[33mEdit message (press Enter to keep as is): \033[0m%s", messages[selected])
-				var editedMsg string
-				fmt.Scanln(&editedMsg)
-				if editedMsg == "" {
-					return messages[selected], nil
+				// Edit selected message
+				editedMsg, err := editMessage(messages[selected])
+				if err != nil {
+					if err.Error() == "edit cancelled" {
+						// Reopen the selection screen if edit was cancelled
+						err = termbox.Init()
+						if err != nil {
+							return "", err
+						}
+						drawMessages(messages, selected, false)
+						continue
+					}
+					return "", err
 				}
 				return editedMsg, nil
 			case termbox.KeyEsc:
