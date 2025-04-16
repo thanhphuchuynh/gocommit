@@ -42,7 +42,7 @@ func generateCommitMessage(diff string, apiKey string) (string, error) {
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.0-pro")
+	model := client.GenerativeModel("gemini-2.0-flash")
 	prompt := fmt.Sprintf(promptTemplate, diff)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
