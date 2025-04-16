@@ -174,6 +174,12 @@ func editMessage(initialMsg string) (string, error) {
 	}
 	defer termbox.Close()
 
+	// Get terminal width
+	width, _ := termbox.Size()
+	if width < 10 {
+		width = 80 // Default width if terminal is too small
+	}
+
 	// Clear screen and show edit prompt
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 
@@ -183,20 +189,57 @@ func editMessage(initialMsg string) (string, error) {
 		termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
 	}
 
-	// Draw initial message
-	for i, ch := range initialMsg {
-		termbox.SetCell(i, 2, ch, termbox.ColorDefault, termbox.ColorDefault)
+	// Draw instructions
+	instructions := "Use arrow keys to move, backspace/delete to edit"
+	for i, ch := range instructions {
+		termbox.SetCell(i, 1, ch, termbox.ColorCyan, termbox.ColorDefault)
 	}
 
-	termbox.Flush()
-
-	// Set cursor position
-	termbox.SetCursor(len(initialMsg), 2)
-	termbox.Flush()
-
-	// Buffer for the edited message
+	// Initialize message buffer and cursor
 	editedMsg := []rune(initialMsg)
 	cursorPos := len(editedMsg)
+	scrollX := 0
+	maxScroll := 0
+
+	// Function to redraw the message with wrapping
+	redraw := func() {
+		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+		// Draw title and instructions
+		for i, ch := range title {
+			termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
+		}
+		for i, ch := range instructions {
+			termbox.SetCell(i, 1, ch, termbox.ColorCyan, termbox.ColorDefault)
+		}
+
+		// Calculate visible portion
+		visibleStart := scrollX
+		visibleEnd := scrollX + width - 1
+		if visibleEnd > len(editedMsg) {
+			visibleEnd = len(editedMsg)
+		}
+
+		// Draw visible portion of the message
+		line := 2
+		col := 0
+		for i := visibleStart; i < visibleEnd; i++ {
+			if col >= width-1 {
+				line++
+				col = 0
+			}
+			termbox.SetCell(col, line, editedMsg[i], termbox.ColorDefault, termbox.ColorDefault)
+			col++
+		}
+
+		// Calculate and set cursor position
+		cursorLine := 2 + (cursorPos / (width - 1))
+		cursorCol := cursorPos % (width - 1)
+		termbox.SetCursor(cursorCol, cursorLine)
+		termbox.Flush()
+	}
+
+	redraw()
 
 	for {
 		switch ev := termbox.PollEvent(); ev.Type {
@@ -210,6 +253,9 @@ func editMessage(initialMsg string) (string, error) {
 				if cursorPos > 0 {
 					editedMsg = append(editedMsg[:cursorPos-1], editedMsg[cursorPos:]...)
 					cursorPos--
+					if cursorPos < scrollX {
+						scrollX = cursorPos
+					}
 				}
 			case termbox.KeyDelete:
 				if cursorPos < len(editedMsg) {
@@ -218,31 +264,44 @@ func editMessage(initialMsg string) (string, error) {
 			case termbox.KeyArrowLeft:
 				if cursorPos > 0 {
 					cursorPos--
+					if cursorPos < scrollX {
+						scrollX = cursorPos
+					}
 				}
 			case termbox.KeyArrowRight:
 				if cursorPos < len(editedMsg) {
 					cursorPos++
+					if cursorPos >= scrollX+width-1 {
+						scrollX = cursorPos - width + 2
+					}
 				}
 			case termbox.KeySpace:
 				editedMsg = append(editedMsg[:cursorPos], append([]rune{' '}, editedMsg[cursorPos:]...)...)
 				cursorPos++
+				if cursorPos >= scrollX+width-1 {
+					scrollX = cursorPos - width + 2
+				}
 			default:
 				if ev.Ch != 0 {
 					editedMsg = append(editedMsg[:cursorPos], append([]rune{ev.Ch}, editedMsg[cursorPos:]...)...)
 					cursorPos++
+					if cursorPos >= scrollX+width-1 {
+						scrollX = cursorPos - width + 2
+					}
 				}
 			}
 
-			// Redraw the message
-			termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-			for i, ch := range title {
-				termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
+			// Update max scroll if needed
+			if len(editedMsg) > width-1 {
+				maxScroll = len(editedMsg) - width + 1
+			} else {
+				maxScroll = 0
 			}
-			for i, ch := range editedMsg {
-				termbox.SetCell(i, 2, ch, termbox.ColorDefault, termbox.ColorDefault)
+			if scrollX > maxScroll {
+				scrollX = maxScroll
 			}
-			termbox.SetCursor(cursorPos, 2)
-			termbox.Flush()
+
+			redraw()
 
 		case termbox.EventError:
 			return "", ev.Err
