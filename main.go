@@ -184,13 +184,13 @@ func editMessage(initialMsg string) (string, error) {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 
 	// Draw title
-	title := "Edit commit message (press Enter to confirm, Esc to cancel):"
+	title := "Edit commit message (Enter to confirm, Shift+Enter for new line, Esc to cancel):"
 	for i, ch := range title {
 		termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
 	}
 
 	// Draw instructions
-	instructions := "Use arrow keys to move, backspace/delete to edit"
+	instructions := "Use arrow keys to move, Shift+Enter for new line, backspace/delete to edit"
 	for i, ch := range instructions {
 		termbox.SetCell(i, 1, ch, termbox.ColorCyan, termbox.ColorDefault)
 	}
@@ -200,6 +200,7 @@ func editMessage(initialMsg string) (string, error) {
 	cursorPos := len(editedMsg)
 	scrollX := 0
 	maxScroll := 0
+	currentLine := 0
 
 	// Function to redraw the message with wrapping
 	redraw := func() {
@@ -213,28 +214,40 @@ func editMessage(initialMsg string) (string, error) {
 			termbox.SetCell(i, 1, ch, termbox.ColorCyan, termbox.ColorDefault)
 		}
 
-		// Calculate visible portion
-		visibleStart := scrollX
-		visibleEnd := scrollX + width - 1
-		if visibleEnd > len(editedMsg) {
-			visibleEnd = len(editedMsg)
+		// Split message into lines
+		lines := strings.Split(string(editedMsg), "\n")
+		if currentLine >= len(lines) {
+			currentLine = len(lines) - 1
 		}
 
 		// Draw visible portion of the message
 		line := 2
-		col := 0
-		for i := visibleStart; i < visibleEnd; i++ {
-			if col >= width-1 {
-				line++
-				col = 0
+		for _, msgLine := range lines {
+			// Calculate visible portion for this line
+			visibleStart := scrollX
+			visibleEnd := scrollX + width - 1
+			if visibleEnd > len(msgLine) {
+				visibleEnd = len(msgLine)
 			}
-			termbox.SetCell(col, line, editedMsg[i], termbox.ColorDefault, termbox.ColorDefault)
-			col++
+
+			// Draw the line
+			col := 0
+			for j := visibleStart; j < visibleEnd; j++ {
+				if col >= width-1 {
+					line++
+					col = 0
+				}
+				termbox.SetCell(col, line, rune(msgLine[j]), termbox.ColorDefault, termbox.ColorDefault)
+				col++
+			}
+			line++
 		}
 
 		// Calculate and set cursor position
-		cursorLine := 2 + (cursorPos / (width - 1))
-		cursorCol := cursorPos % (width - 1)
+		linesBeforeCursor := strings.Split(string(editedMsg[:cursorPos]), "\n")
+		cursorLine := 2 + len(linesBeforeCursor) - 1
+		lastLine := linesBeforeCursor[len(linesBeforeCursor)-1]
+		cursorCol := len(lastLine) % (width - 1)
 		termbox.SetCursor(cursorCol, cursorLine)
 		termbox.Flush()
 	}
@@ -246,7 +259,15 @@ func editMessage(initialMsg string) (string, error) {
 		case termbox.EventKey:
 			switch ev.Key {
 			case termbox.KeyEnter:
-				return string(editedMsg), nil
+				if ev.Mod&termbox.ModAlt != 0 {
+					// Insert newline when Shift+Enter is pressed
+					editedMsg = append(editedMsg[:cursorPos], append([]rune{'\n'}, editedMsg[cursorPos:]...)...)
+					cursorPos++
+					redraw()
+				} else {
+					// Regular Enter confirms the edit
+					return string(editedMsg), nil
+				}
 			case termbox.KeyEsc:
 				return "", fmt.Errorf("edit cancelled")
 			case termbox.KeyBackspace, termbox.KeyBackspace2:
@@ -274,6 +295,32 @@ func editMessage(initialMsg string) (string, error) {
 					if cursorPos >= scrollX+width-1 {
 						scrollX = cursorPos - width + 2
 					}
+				}
+			case termbox.KeyArrowUp:
+				// Move cursor up one line
+				lines := strings.Split(string(editedMsg[:cursorPos]), "\n")
+				if len(lines) > 1 {
+					currentLine = len(lines) - 2
+					prevLine := lines[currentLine]
+					if len(prevLine) < cursorPos-len(lines[len(lines)-1])-1 {
+						cursorPos = len(strings.Join(lines[:currentLine+1], "\n")) + 1
+					} else {
+						cursorPos = len(strings.Join(lines[:currentLine], "\n")) + 1 + len(prevLine)
+					}
+					redraw()
+				}
+			case termbox.KeyArrowDown:
+				// Move cursor down one line
+				lines := strings.Split(string(editedMsg[:cursorPos]), "\n")
+				if currentLine < len(lines)-1 {
+					currentLine++
+					nextLine := lines[currentLine]
+					if len(nextLine) < cursorPos-len(strings.Join(lines[:currentLine], "\n"))-1 {
+						cursorPos = len(strings.Join(lines[:currentLine], "\n")) + 1 + len(nextLine)
+					} else {
+						cursorPos = len(strings.Join(lines[:currentLine], "\n")) + 1
+					}
+					redraw()
 				}
 			case termbox.KeySpace:
 				editedMsg = append(editedMsg[:cursorPos], append([]rune{' '}, editedMsg[cursorPos:]...)...)
