@@ -24,11 +24,11 @@ An AI-powered git commit message generator using Google's Gemini API. This tool 
 ### Option 1: One-command Installation (Recommended)
 Run this command in your terminal:
 ```bash
-curl -sSL https://raw.githubusercontent.com/tphuc/gocommit/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/install.sh | bash
 ```
 or using wget:
 ```bash
-wget -qO- https://raw.githubusercontent.com/tphuc/gocommit/main/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/install.sh | bash
 ```
 
 The script will:
@@ -41,7 +41,7 @@ The script will:
 ### Option 2: Manual Installation
 1. Clone the repository:
 ```bash
-git clone https://github.com/tphuc/gocommit.git
+git clone https://github.com/thanhphuchuynh/gocommit.git
 cd gocommit
 ```
 
