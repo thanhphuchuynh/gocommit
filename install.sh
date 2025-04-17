@@ -25,13 +25,13 @@ cd "$TEMP_DIR"
 # Download the repository
 echo "Downloading GoCommit..."
 if command -v git &> /dev/null; then
-    git clone https://github.com/tphuc/gocommit.git .
+    git clone https://github.com/thanhphuchuynh/gocommit.git .
 else
     echo "Git not found. Downloading using curl/wget..."
     if command -v curl &> /dev/null; then
-        curl -L https://github.com/tphuc/gocommit/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
+        curl -L https://github.com/thanhphuchuynh/gocommit/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
     elif command -v wget &> /dev/null; then
-        wget -qO- https://github.com/tphuc/gocommit/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
+        wget -qO- https://github.com/thanhphuchuynh/gocommit/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
     else
         echo "Error: Neither curl nor wget is installed. Please install one of them."
         exit 1
