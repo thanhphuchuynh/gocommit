@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/nsf/termbox-go"
+	"github.com/tphuc/gocommit/config"
 	"google.golang.org/api/option"
 )
 
@@ -425,10 +427,41 @@ func getUserChoice(messages []string) (string, error) {
 	}
 }
 
+func isValidAPIKey(apiKey string) bool {
+	// Google AI API keys typically start with "AIza" and are 39 characters long
+	return len(apiKey) == 39 && strings.HasPrefix(apiKey, "AIza")
+}
+
 func main() {
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		log.Fatal("GEMINI_API_KEY environment variable is required")
+	configFlag := flag.Bool("config", false, "Configure API key")
+	flag.Parse()
+
+	if *configFlag {
+		fmt.Print("Enter your Google AI API key: ")
+		var apiKey string
+		fmt.Scanln(&apiKey)
+
+		// Trim whitespace and check if empty
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey == "" {
+			log.Fatal("Error: API key cannot be empty")
+		}
+
+		// Check if API key format is correct
+		if !isValidAPIKey(apiKey) {
+			log.Fatal("Error: Invalid API key format. Google AI API keys should start with 'AIza' and be 39 characters long.")
+		}
+
+		if err := config.SetAPIKey(apiKey); err != nil {
+			log.Fatalf("Failed to save API key: %v", err)
+		}
+		fmt.Println("API key configured successfully!")
+		return
+	}
+
+	apiKey, err := config.GetAPIKey()
+	if err != nil {
+		log.Fatalf("Error: %v", err)
 	}
 
 	diff, err := getGitDiff()
