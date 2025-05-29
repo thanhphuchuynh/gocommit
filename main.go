@@ -12,25 +12,52 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	"github.com/nsf/termbox-go"
 	"github.com/tphuc/gocommit/config"
+	"github.com/tphuc/gocommit/logger"
 	"google.golang.org/api/option"
 )
 
-const promptTemplate = `As an AI commit message generator, analyze the following git diff and generate 3 different concise, meaningful commit messages following conventional commits format (type(scope): description). The commit types should be one of: feat, fix, docs, style, refactor, perf, test, or chore.
+const promptTemplate = `You are an expert at writing conventional commit messages. Analyze the git diff and generate 3 high-quality commit messages.
 
-Git diff:
+## Conventional Commit Format
+type(optional-scope): description
+
+## Available Types
+- feat: new feature for users
+- fix: bug fix for users
+- docs: documentation changes
+- style: formatting, missing semicolons, etc (no code change)
+- refactor: code change that neither fixes bug nor adds feature
+- perf: code change that improves performance
+- test: adding/updating tests
+- chore: updating build tasks, package manager configs, etc
+
+## Scope Guidelines
+- Use specific component/module names when applicable
+- Examples: api, ui, auth, config, database, utils
+- Omit scope if change affects multiple areas
+
+## Git Diff
 %s
 
-Last commit message format (for reference):
+## Last Commit (for style reference)
 %s
 
-Generate 3 different commit messages that are:
-1. Concise (max 100 characters)
-2. Descriptive
-3. Following the format: type(scope): description
-4. Based on the actual code changes shown in the diff
-5. Following a similar style to the last commit message if applicable
+## Requirements
+1. Max 200 characters (industry standard)
+2. Use imperative mood ("add" not "added" or "adds")
+3. No period at the end
+4. Scope should reflect the actual changed component
+5. Description should explain WHAT changed, not WHY
+6. Be specific about the actual changes in the diff
 
-Return each commit message on a new line, numbered 1-3. No explanation needed.`
+## Examples
+- feat(auth): add OAuth2 login support
+- fix(api): handle null response in user endpoint
+- refactor(utils): extract validation logic to separate module
+- docs(readme): update installation instructions
+- style(components): fix indentation in header component
+
+Generate exactly 3 different commit messages, numbered 1-3:`
 
 func getGitDiff() (string, error) {
 	cmd := exec.Command("git", "diff", "--cached")
@@ -41,11 +68,11 @@ func getGitDiff() (string, error) {
 	return string(output), nil
 }
 
-func generateCommitMessages(diff string, apiKey string) ([]string, error) {
+func generateCommitMessages(diff string, apiKey string) ([]string, string, string, string, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %v", err)
+		return nil, "", "", "", fmt.Errorf("failed to create client: %v", err)
 	}
 	defer client.Close()
 
@@ -61,15 +88,17 @@ func generateCommitMessages(diff string, apiKey string) ([]string, error) {
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %v", err)
+		return nil, diff, lastCommitMsg, prompt, fmt.Errorf("failed to generate content: %v", err)
 	}
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("no content generated")
+		return nil, diff, lastCommitMsg, prompt, fmt.Errorf("no content generated")
 	}
 
 	// Get the text content from the response
 	text := ""
+	fmt.Printf("Generated response: %+v \n", resp.Candidates[0].Content.Parts)
+
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if str, ok := part.(genai.Text); ok {
 			text += string(str)
@@ -79,7 +108,7 @@ func generateCommitMessages(diff string, apiKey string) ([]string, error) {
 	// Split the response into individual messages
 	messages := strings.Split(strings.TrimSpace(text), "\n")
 	if len(messages) < 3 {
-		return nil, fmt.Errorf("expected 3 messages, got %d", len(messages))
+		return nil, diff, lastCommitMsg, prompt, fmt.Errorf("expected 3 messages, got %d", len(messages))
 	}
 
 	// Clean up the messages (remove numbers and extra spaces)
@@ -94,7 +123,7 @@ func generateCommitMessages(diff string, apiKey string) ([]string, error) {
 		}
 	}
 
-	return cleanMessages, nil
+	return cleanMessages, diff, lastCommitMsg, prompt, nil
 }
 
 func getLastCommitMessage() (string, error) {
@@ -473,8 +502,10 @@ func main() {
 		log.Fatal("No staged changes found. Please stage your changes using 'git add' first.")
 	}
 
-	messages, err := generateCommitMessages(diff, apiKey)
+	messages, gitDiff, lastCommitMsg, prompt, err := generateCommitMessages(diff, apiKey)
 	if err != nil {
+		// Log error
+		logger.LogError(gitDiff, lastCommitMsg, prompt, err.Error())
 		log.Fatal(err)
 	}
 
@@ -482,6 +513,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Get the full AI response for logging
+	aiResponse := strings.Join(messages, "\n")
+
+	// Log successful request
+	logger.LogSuccess(gitDiff, lastCommitMsg, prompt, aiResponse, messages, commitMsg)
 
 	// Create git commit with the chosen message
 	cmd := exec.Command("git", "commit", "-m", commitMsg)
@@ -493,4 +530,8 @@ func main() {
 	}
 
 	fmt.Printf("Successfully created commit with message: %s\n", commitMsg)
+
+	// Show log file location
+	logPath, _ := logger.GetLogPath()
+	fmt.Printf("Request logged to: %s\n", logPath)
 }

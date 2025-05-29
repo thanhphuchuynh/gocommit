@@ -1,6 +1,6 @@
 # GoCommit
 
-An AI-powered git commit message generator using Google's Gemini API. This tool automatically generates meaningful commit messages based on your staged changes, following conventional commit formats.
+An AI-powered git commit message generator using Google's Gemini API. This tool automatically generates meaningful commit messages based on your staged changes, following conventional commit formats, with comprehensive logging for prompt analysis and improvement.
 
 ## Features
 
@@ -12,6 +12,8 @@ An AI-powered git commit message generator using Google's Gemini API. This tool 
 - Available as a system-wide command
 - Easy installation with automated script
 - One-command installation from the internet
+- Comprehensive request/response logging for prompt improvement
+- Built-in log analysis tools
 
 ## Prerequisites
 
@@ -109,6 +111,34 @@ The generated commit messages follow the conventional commits format:
 - test: Adding or updating tests
 - chore: Maintenance tasks
 
+## Logging & Analysis
+
+gocommit automatically logs all requests and responses to help improve prompts over time. Each interaction captures:
+
+- Git diff and commit context
+- AI prompts sent and responses received
+- User selections and final commit messages
+- Success/failure status and error details
+- Timestamps for analysis
+
+Logs are stored locally at `~/.gocommit/gocommit_requests.log` in JSON format.
+
+### Analyzing Logs
+
+Use the built-in analysis tool to understand usage patterns:
+
+```bash
+go run tools/analyze_logs.go
+```
+
+This provides insights into:
+- Success rates and error patterns
+- Most common commit types
+- User choice preferences
+- Daily activity patterns
+
+For detailed logging documentation, see [README_LOGGING.md](README_LOGGING.md).
+
 ## License
 
-MIT 
+MIT
