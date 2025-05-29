@@ -59,6 +59,59 @@ type(optional-scope): description
 
 Generate exactly 3 different commit messages, numbered 1-3:`
 
+const detailedPromptTemplate = `You are an expert at writing conventional commit messages. Analyze the git diff and generate 3 high-quality, detailed commit messages.
+
+## Conventional Commit Format
+type(optional-scope): description
+
+Detailed description explaining what was changed and why.
+
+## Available Types
+- feat: new feature for users
+- fix: bug fix for users
+- docs: documentation changes
+- style: formatting, missing semicolons, etc (no code change)
+- refactor: code change that neither fixes bug nor adds feature
+- perf: code change that improves performance
+- test: adding/updating tests
+- chore: updating build tasks, package manager configs, etc
+
+## Scope Guidelines
+- Use specific component/module names when applicable
+- Examples: api, ui, auth, config, database, utils
+- Omit scope if change affects multiple areas
+
+## Git Diff
+%s
+
+## Last Commit (for style reference)
+%s
+
+## Requirements
+1. Subject line: max 200 characters (industry standard)
+2. Use imperative mood ("add" not "added" or "adds")
+3. No period at the end of subject line
+4. Scope should reflect the actual changed component
+5. Subject should explain WHAT changed
+6. Body should explain WHY and HOW in more detail
+7. Be specific about the actual changes in the diff
+8. Include technical details and context in the body
+
+## Examples
+feat(auth): add OAuth2 login support
+
+Implements OAuth2 authentication flow with Google and GitHub providers.
+Adds token validation, refresh mechanism, and user profile fetching.
+Includes comprehensive error handling for failed authentication attempts.
+
+fix(api): handle null response in user endpoint
+
+Prevents application crash when user data is missing from database.
+Adds null checks and default values for required user fields.
+Improves error messaging for better debugging experience.
+
+Generate exactly 3 different detailed commit messages with body text, numbered 1-3:`
+
 func getGitDiff() (string, error) {
 	cmd := exec.Command("git", "diff", "--cached")
 	output, err := cmd.Output()
@@ -68,7 +121,7 @@ func getGitDiff() (string, error) {
 	return string(output), nil
 }
 
-func generateCommitMessages(diff string, apiKey string) ([]string, string, string, string, error) {
+func generateCommitMessages(diff string, apiKey string, detailed bool) ([]string, string, string, string, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
@@ -84,7 +137,12 @@ func generateCommitMessages(diff string, apiKey string) ([]string, string, strin
 	}
 
 	model := client.GenerativeModel("gemini-2.0-flash")
-	prompt := fmt.Sprintf(promptTemplate, diff, lastCommitMsg)
+	var prompt string
+	if detailed {
+		prompt = fmt.Sprintf(detailedPromptTemplate, diff, lastCommitMsg)
+	} else {
+		prompt = fmt.Sprintf(promptTemplate, diff, lastCommitMsg)
+	}
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
@@ -105,25 +163,128 @@ func generateCommitMessages(diff string, apiKey string) ([]string, string, strin
 		}
 	}
 
-	// Split the response into individual messages
-	messages := strings.Split(strings.TrimSpace(text), "\n")
-	if len(messages) < 3 {
-		return nil, diff, lastCommitMsg, prompt, fmt.Errorf("expected 3 messages, got %d", len(messages))
-	}
+	// Handle markdown code blocks by splitting on triple backticks
+	var cleanMessages []string
 
-	// Clean up the messages (remove numbers and extra spaces)
-	cleanMessages := make([]string, 3)
-	for i, msg := range messages[:3] {
-		// Remove the number prefix if present
-		parts := strings.SplitN(msg, " ", 2)
-		if len(parts) > 1 {
-			cleanMessages[i] = strings.TrimSpace(parts[1])
-		} else {
-			cleanMessages[i] = strings.TrimSpace(msg)
+	// Check if response contains markdown code blocks
+	if strings.Contains(text, "```") {
+		// Split by code block delimiters and extract commit messages
+		blocks := strings.Split(text, "```")
+		for _, block := range blocks {
+			block = strings.TrimSpace(block)
+			if block == "" {
+				continue
+			}
+			// Skip blocks that don't contain commit messages
+			if !strings.Contains(block, ":") {
+				continue
+			}
+
+			// Check if this block contains numbered items (1., 2., 3.)
+			if strings.Contains(block, "1.") && strings.Contains(block, "2.") {
+				// Parse numbered items within the block
+				lines := strings.Split(block, "\n")
+				currentMessage := ""
+				inMessage := false
+
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+
+					// Check if this line starts a new numbered message
+					if strings.Contains(line, ".  ") || strings.Contains(line, ". ") {
+						// Save previous message if we have one
+						if inMessage && currentMessage != "" {
+							cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
+							if len(cleanMessages) >= 3 {
+								break
+							}
+						}
+
+						// Start new message - remove number prefix
+						var parts []string
+						if strings.Contains(line, ".  ") {
+							parts = strings.SplitN(line, ".  ", 2)
+						} else {
+							parts = strings.SplitN(line, ". ", 2)
+						}
+						if len(parts) > 1 {
+							currentMessage = strings.TrimSpace(parts[1])
+							inMessage = true
+						}
+					} else if inMessage && line != "" {
+						// Continue building the current message
+						if detailed {
+							currentMessage += "\n" + line
+						}
+					}
+				}
+
+				// Add the last message
+				if inMessage && currentMessage != "" {
+					cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
+				}
+			} else {
+				// Single commit message in a code block
+				cleanMessages = append(cleanMessages, block)
+				if len(cleanMessages) >= 3 {
+					break
+				}
+			}
+		}
+	} else {
+		// Parse numbered messages - handle both simple and detailed formats
+		lines := strings.Split(strings.TrimSpace(text), "\n")
+		currentMessage := ""
+		inMessage := false
+
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+
+			// Check if this line starts a new numbered message
+			if strings.Contains(line, ".  ") || strings.Contains(line, ". ") {
+				// Save previous message if we have one
+				if inMessage && currentMessage != "" {
+					cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
+					if len(cleanMessages) >= 3 {
+						break
+					}
+				}
+
+				// Start new message - remove number prefix
+				var parts []string
+				if strings.Contains(line, ".  ") {
+					parts = strings.SplitN(line, ".  ", 2)
+				} else {
+					parts = strings.SplitN(line, ". ", 2)
+				}
+				if len(parts) > 1 {
+					currentMessage = strings.TrimSpace(parts[1])
+					inMessage = true
+				}
+			} else if inMessage && line != "" {
+				// Continue building the current message
+				if detailed {
+					currentMessage += "\n" + line
+				}
+				// For simple messages, we only want the first line, so don't append
+			}
+		}
+
+		// Add the last message
+		if inMessage && currentMessage != "" {
+			cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
 		}
 	}
 
-	return cleanMessages, diff, lastCommitMsg, prompt, nil
+	if len(cleanMessages) < 3 {
+		return nil, diff, lastCommitMsg, prompt, fmt.Errorf("expected 3 messages, got %d", len(cleanMessages))
+	}
+
+	// Take only the first 3 messages
+	finalMessages := make([]string, 3)
+	copy(finalMessages, cleanMessages[:3])
+
+	return finalMessages, diff, lastCommitMsg, prompt, nil
 }
 
 func getLastCommitMessage() (string, error) {
@@ -137,6 +298,12 @@ func getLastCommitMessage() (string, error) {
 
 func drawMessages(messages []string, selected int, showEditPrompt bool) {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+	// Get terminal width
+	width, _ := termbox.Size()
+	if width < 10 {
+		width = 80 // Default width if terminal is too small
+	}
 
 	// Draw title
 	title := "Select a commit message:"
@@ -158,8 +325,23 @@ func drawMessages(messages []string, selected int, showEditPrompt bool) {
 			bullet = "→"
 		}
 		termbox.SetCell(2, i+2, []rune(bullet)[0], fg, bg)
+
+		// For detailed messages, show only the subject line (first line)
+		displayMsg := msg
+		if strings.Contains(msg, "\n") {
+			// Extract just the subject line for display
+			lines := strings.Split(msg, "\n")
+			displayMsg = lines[0]
+		}
+
+		// Truncate message if it's too long for the terminal
+		maxMsgWidth := width - 6 // Account for bullet point and spacing
+		if len(displayMsg) > maxMsgWidth {
+			displayMsg = displayMsg[:maxMsgWidth-3] + "..."
+		}
+
 		// Draw message
-		for j, ch := range msg {
+		for j, ch := range displayMsg {
 			termbox.SetCell(j+4, i+2, ch, fg, bg)
 		}
 	}
@@ -233,9 +415,15 @@ func editMessage(initialMsg string) (string, error) {
 	maxScroll := 0
 	currentLine := 0
 
-	// Function to redraw the message with wrapping
+	// Function to redraw the message with wrapping and scrolling
 	redraw := func() {
 		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+		// Get terminal height for scrolling
+		_, height := termbox.Size()
+		if height < 10 {
+			height = 24 // Default height
+		}
 
 		// Draw title and instructions
 		for i, ch := range title {
@@ -245,41 +433,82 @@ func editMessage(initialMsg string) (string, error) {
 			termbox.SetCell(i, 1, ch, termbox.ColorCyan, termbox.ColorDefault)
 		}
 
-		// Split message into lines
-		lines := strings.Split(string(editedMsg), "\n")
-		if currentLine >= len(lines) {
-			currentLine = len(lines) - 1
-		}
+		// Split message into display lines (considering word wrapping)
+		msgLines := strings.Split(string(editedMsg), "\n")
+		displayLines := []string{}
+		lineToOriginal := []int{} // Maps display line to original line number
 
-		// Draw visible portion of the message
-		line := 2
-		for _, msgLine := range lines {
-			// Calculate visible portion for this line
-			visibleStart := scrollX
-			visibleEnd := scrollX + width - 1
-			if visibleEnd > len(msgLine) {
-				visibleEnd = len(msgLine)
-			}
-
-			// Draw the line
-			col := 0
-			for j := visibleStart; j < visibleEnd; j++ {
-				if col >= width-1 {
-					line++
-					col = 0
+		for lineIdx, msgLine := range msgLines {
+			if len(msgLine) <= width-1 {
+				// Line fits in one display line
+				displayLines = append(displayLines, msgLine)
+				lineToOriginal = append(lineToOriginal, lineIdx)
+			} else {
+				// Wrap long lines
+				for i := 0; i < len(msgLine); i += width - 1 {
+					end := i + width - 1
+					if end > len(msgLine) {
+						end = len(msgLine)
+					}
+					displayLines = append(displayLines, msgLine[i:end])
+					lineToOriginal = append(lineToOriginal, lineIdx)
 				}
-				termbox.SetCell(col, line, rune(msgLine[j]), termbox.ColorDefault, termbox.ColorDefault)
-				col++
 			}
-			line++
 		}
 
-		// Calculate and set cursor position
+		// Calculate cursor position in display coordinates
 		linesBeforeCursor := strings.Split(string(editedMsg[:cursorPos]), "\n")
-		cursorLine := 2 + len(linesBeforeCursor) - 1
+		cursorOriginalLine := len(linesBeforeCursor) - 1
 		lastLine := linesBeforeCursor[len(linesBeforeCursor)-1]
-		cursorCol := len(lastLine) % (width - 1)
-		termbox.SetCursor(cursorCol, cursorLine)
+		cursorColInOriginal := len(lastLine)
+
+		// Find cursor position in display coordinates
+		cursorDisplayLine := 0
+		cursorDisplayCol := 0
+		for i, origLine := range lineToOriginal {
+			if origLine == cursorOriginalLine {
+				lineStart := 0
+				for j := 0; j < i; j++ {
+					if lineToOriginal[j] == cursorOriginalLine {
+						lineStart += len(displayLines[j])
+					}
+				}
+				if cursorColInOriginal >= lineStart && cursorColInOriginal <= lineStart+len(displayLines[i]) {
+					cursorDisplayLine = i
+					cursorDisplayCol = cursorColInOriginal - lineStart
+					break
+				}
+			}
+		}
+
+		// Calculate scroll offset to keep cursor visible
+		maxDisplayLines := height - 3 // Account for title and instructions
+		scrollY := 0
+		if cursorDisplayLine >= maxDisplayLines {
+			scrollY = cursorDisplayLine - maxDisplayLines + 1
+		}
+
+		// Draw visible lines
+		for i := scrollY; i < len(displayLines) && i-scrollY < maxDisplayLines; i++ {
+			line := displayLines[i]
+			y := 2 + (i - scrollY)
+
+			// Draw each character of the line
+			for j, ch := range line {
+				if j < width-1 {
+					termbox.SetCell(j, y, ch, termbox.ColorDefault, termbox.ColorDefault)
+				}
+			}
+		}
+
+		// Set cursor position (adjusted for scroll)
+		if cursorDisplayLine >= scrollY && cursorDisplayLine < scrollY+maxDisplayLines {
+			cursorY := 2 + (cursorDisplayLine - scrollY)
+			if cursorDisplayCol < width-1 {
+				termbox.SetCursor(cursorDisplayCol, cursorY)
+			}
+		}
+
 		termbox.Flush()
 	}
 
@@ -463,6 +692,7 @@ func isValidAPIKey(apiKey string) bool {
 
 func main() {
 	configFlag := flag.Bool("config", false, "Configure API key")
+	detailedFlag := flag.Bool("d", false, "Generate detailed commit messages with body text")
 	flag.Parse()
 
 	if *configFlag {
@@ -502,7 +732,7 @@ func main() {
 		log.Fatal("No staged changes found. Please stage your changes using 'git add' first.")
 	}
 
-	messages, gitDiff, lastCommitMsg, prompt, err := generateCommitMessages(diff, apiKey)
+	messages, gitDiff, lastCommitMsg, prompt, err := generateCommitMessages(diff, apiKey, *detailedFlag)
 	if err != nil {
 		// Log error
 		logger.LogError(gitDiff, lastCommitMsg, prompt, err.Error())
