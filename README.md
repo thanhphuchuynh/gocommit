@@ -66,6 +66,35 @@ sudo mv gocommit /usr/local/bin/
 Move-Item gocommit.exe C:\Windows\System32\
 ```
 
+## Updates
+
+To update GoCommit to the latest version:
+
+### Option 1: One-command Update (Recommended)
+Run this command in your terminal:
+```bash
+curl -sSL https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/update.sh | bash
+```
+or using wget:
+```bash
+wget -qO- https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/update.sh | bash
+```
+
+### Option 2: Manual Update
+If you have the repository cloned locally:
+```bash
+cd gocommit
+./update.sh
+```
+
+The update script will:
+1. Check if GoCommit is currently installed
+2. Download the latest version from GitHub
+3. Build the updated application
+4. Backup your current version with timestamp
+5. Install the new version system-wide
+6. Preserve your existing API key and configuration
+
 ## Configuration
 
 Configure your Gemini API key using the built-in configuration tool:
