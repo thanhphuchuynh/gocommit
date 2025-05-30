@@ -207,8 +207,7 @@ func generateCommitMessages(diff string, apiKey string, detailed bool) ([]string
 	cleanText := strings.TrimSpace(text)
 
 	// Log the raw response for debugging
-	log.Printf("Raw AI response: %s", text)
-
+	// log.Printf("Raw AI response: %s", text)
 	var finalMessages []string
 
 	if detailed {
