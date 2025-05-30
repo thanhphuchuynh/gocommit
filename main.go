@@ -195,7 +195,7 @@ func generateCommitMessages(diff string, apiKey string, detailed bool) ([]string
 
 	// Get the text content from the response
 	text := ""
-	fmt.Printf("Generated response: %+v \n", resp.Candidates[0].Content.Parts)
+	// fmt.Printf("Generated response: %+v \n", resp.Candidates[0].Content.Parts)
 
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if str, ok := part.(genai.Text); ok {
