@@ -12,7 +12,8 @@ const (
 )
 
 type Config struct {
-	APIKey string `json:"api_key"`
+	APIKey         string `json:"api_key"`
+	LoggingEnabled bool   `json:"logging_enabled"`
 }
 
 func getConfigPath() (string, error) {
@@ -86,5 +87,24 @@ func SetAPIKey(apiKey string) error {
 	}
 
 	config.APIKey = apiKey
+	return SaveConfig(config)
+}
+
+func IsLoggingEnabled() (bool, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return false, err
+	}
+
+	return config.LoggingEnabled, nil
+}
+
+func SetLoggingEnabled(enabled bool) error {
+	config, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	config.LoggingEnabled = enabled
 	return SaveConfig(config)
 }

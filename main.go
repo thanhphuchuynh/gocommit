@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/nsf/termbox-go"
-	"github.com/tphuc/gocommit/config"
-	"github.com/tphuc/gocommit/logger"
+	"github.com/thanhphuchuynh/config"
+	"github.com/thanhphuchuynh/logger"
 	"google.golang.org/api/option"
 )
 
@@ -790,7 +790,26 @@ func isValidAPIKey(apiKey string) bool {
 func main() {
 	configFlag := flag.Bool("config", false, "Configure API key")
 	detailedFlag := flag.Bool("d", false, "Generate detailed commit messages with body text")
+	enableLoggingFlag := flag.Bool("enable-logging", false, "Enable request logging to file")
+	disableLoggingFlag := flag.Bool("disable-logging", false, "Disable request logging to file")
 	flag.Parse()
+
+	// Handle logging configuration flags
+	if *enableLoggingFlag {
+		if err := config.SetLoggingEnabled(true); err != nil {
+			log.Fatalf("Failed to enable logging: %v", err)
+		}
+		fmt.Println("Logging enabled successfully!")
+		return
+	}
+
+	if *disableLoggingFlag {
+		if err := config.SetLoggingEnabled(false); err != nil {
+			log.Fatalf("Failed to disable logging: %v", err)
+		}
+		fmt.Println("Logging disabled successfully!")
+		return
+	}
 
 	if *configFlag {
 		fmt.Print("Enter your Google AI API key: ")

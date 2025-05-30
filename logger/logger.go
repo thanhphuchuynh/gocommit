@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/thanhphuchuynh/config"
 )
 
 type LogEntry struct {
@@ -77,6 +79,16 @@ func LogRequest(entry LogEntry) error {
 }
 
 func LogSuccess(gitDiff, lastCommitMsg, prompt, aiResponse string, generatedMsgs []string, selectedMsg string) {
+	// Check if logging is enabled
+	loggingEnabled, err := config.IsLoggingEnabled()
+	if err != nil {
+		fmt.Printf("Warning: Failed to check logging config: %v\n", err)
+		return
+	}
+	if !loggingEnabled {
+		return
+	}
+
 	entry := LogEntry{
 		GitDiff:       gitDiff,
 		LastCommitMsg: lastCommitMsg,
@@ -93,6 +105,16 @@ func LogSuccess(gitDiff, lastCommitMsg, prompt, aiResponse string, generatedMsgs
 }
 
 func LogError(gitDiff, lastCommitMsg, prompt string, errorMsg string) {
+	// Check if logging is enabled
+	loggingEnabled, err := config.IsLoggingEnabled()
+	if err != nil {
+		fmt.Printf("Warning: Failed to check logging config: %v\n", err)
+		return
+	}
+	if !loggingEnabled {
+		return
+	}
+
 	entry := LogEntry{
 		GitDiff:       gitDiff,
 		LastCommitMsg: lastCommitMsg,

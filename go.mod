@@ -1,4 +1,4 @@
-module github.com/tphuc/gocommit
+module github.com/thanhphuchuynh
 
 go 1.21
 
