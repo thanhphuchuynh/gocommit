@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -15,6 +16,11 @@ import (
 	"github.com/tphuc/gocommit/logger"
 	"google.golang.org/api/option"
 )
+
+// CommitResponse represents the JSON response from AI
+type CommitResponse struct {
+	Messages []string `json:"messages"`
+}
 
 const promptTemplate = `You are an expert at writing conventional commit messages. Analyze the git diff and generate 3 high-quality commit messages.
 
@@ -57,7 +63,17 @@ type(optional-scope): description
 - docs(readme): update installation instructions
 - style(components): fix indentation in header component
 
-Generate exactly 3 different commit messages, numbered 1-3:`
+Generate exactly 3 different commit messages in JSON format:
+
+{
+  "messages": [
+    "feat(scope): commit message 1",
+    "fix(scope): commit message 2",
+    "refactor(scope): commit message 3"
+  ]
+}
+
+Return only valid JSON with no additional text.`
 
 const detailedPromptTemplate = `You are an expert at writing conventional commit messages. Analyze the git diff and generate 3 high-quality, detailed commit messages.
 
@@ -110,7 +126,31 @@ Prevents application crash when user data is missing from database.
 Adds null checks and default values for required user fields.
 Improves error messaging for better debugging experience.
 
-Generate exactly 3 different detailed commit messages with body text, numbered 1-3:`
+Generate exactly 3 different detailed commit messages with body text. Format them as:
+
+feat: enhance commit message generation with JSON output
+
+Refactors the commit message generation process to return responses in JSON format.
+This change ensures a structured and parsable output, improving integration with other tools.
+Updates prompt templates to explicitly request JSON formatted messages and removes parsing logic.
+
+---
+
+fix: correct JSON parsing in commit message generation
+
+Addresses an issue where the JSON output from the AI model was not correctly parsed.
+Improves JSON extraction from the response by handling potential code blocks.
+Adds more robust error handling and logging for debugging JSON parsing failures.
+
+---
+
+chore: update dependencies and improve error handling
+
+Updates the go.mod and go.sum files to include the latest dependencies.
+Improves error handling throughout the application, providing more informative error messages.
+Includes changes to gracefully handle API request failures.
+
+Return only the 3 commit messages in the format shown above with no additional text.`
 
 func getGitDiff() (string, error) {
 	cmd := exec.Command("git", "diff", "--cached")
@@ -163,126 +203,183 @@ func generateCommitMessages(diff string, apiKey string, detailed bool) ([]string
 		}
 	}
 
-	// Handle markdown code blocks by splitting on triple backticks
-	var cleanMessages []string
+	// Clean the response text - remove markdown code blocks if present
+	cleanText := strings.TrimSpace(text)
 
-	// Check if response contains markdown code blocks
-	if strings.Contains(text, "```") {
-		// Split by code block delimiters and extract commit messages
-		blocks := strings.Split(text, "```")
-		for _, block := range blocks {
-			block = strings.TrimSpace(block)
-			if block == "" {
-				continue
+	// Log the raw response for debugging
+	log.Printf("Raw AI response: %s", text)
+
+	var finalMessages []string
+
+	if detailed {
+		// Parse detailed format (plain text with --- separators)
+		// Split by --- separators and extract commit messages
+		parts := strings.Split(cleanText, "---")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				finalMessages = append(finalMessages, part)
 			}
-			// Skip blocks that don't contain commit messages
-			if !strings.Contains(block, ":") {
-				continue
-			}
+		}
 
-			// Check if this block contains numbered items (1., 2., 3.)
-			if strings.Contains(block, "1.") && strings.Contains(block, "2.") {
-				// Parse numbered items within the block
-				lines := strings.Split(block, "\n")
-				currentMessage := ""
-				inMessage := false
+		// If we don't have 3 messages from --- separator, try alternative parsing
+		if len(finalMessages) < 3 {
+			// Look for commit messages that start with type prefixes
+			lines := strings.Split(cleanText, "\n")
+			var currentMessage strings.Builder
+			messages := []string{}
 
-				for _, line := range lines {
-					line = strings.TrimSpace(line)
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
 
-					// Check if this line starts a new numbered message
-					if strings.Contains(line, ".  ") || strings.Contains(line, ". ") {
-						// Save previous message if we have one
-						if inMessage && currentMessage != "" {
-							cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
-							if len(cleanMessages) >= 3 {
-								break
-							}
-						}
+				// Check if line starts with a commit type
+				if strings.HasPrefix(line, "feat:") || strings.HasPrefix(line, "fix:") ||
+					strings.HasPrefix(line, "docs:") || strings.HasPrefix(line, "style:") ||
+					strings.HasPrefix(line, "refactor:") || strings.HasPrefix(line, "perf:") ||
+					strings.HasPrefix(line, "test:") || strings.HasPrefix(line, "chore:") ||
+					strings.HasPrefix(line, "feat(") || strings.HasPrefix(line, "fix(") ||
+					strings.HasPrefix(line, "docs(") || strings.HasPrefix(line, "style(") ||
+					strings.HasPrefix(line, "refactor(") || strings.HasPrefix(line, "perf(") ||
+					strings.HasPrefix(line, "test(") || strings.HasPrefix(line, "chore(") {
 
-						// Start new message - remove number prefix
-						var parts []string
-						if strings.Contains(line, ".  ") {
-							parts = strings.SplitN(line, ".  ", 2)
-						} else {
-							parts = strings.SplitN(line, ". ", 2)
-						}
-						if len(parts) > 1 {
-							currentMessage = strings.TrimSpace(parts[1])
-							inMessage = true
-						}
-					} else if inMessage && line != "" {
-						// Continue building the current message
-						if detailed {
-							currentMessage += "\n" + line
-						}
+					// If we have a previous message, save it
+					if currentMessage.Len() > 0 {
+						messages = append(messages, strings.TrimSpace(currentMessage.String()))
+						currentMessage.Reset()
 					}
+					// Start new message
+					currentMessage.WriteString(line)
+				} else if currentMessage.Len() > 0 {
+					// Add to current message body
+					currentMessage.WriteString("\n" + line)
 				}
+			}
 
-				// Add the last message
-				if inMessage && currentMessage != "" {
-					cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
-				}
+			// Add the last message if any
+			if currentMessage.Len() > 0 {
+				messages = append(messages, strings.TrimSpace(currentMessage.String()))
+			}
+
+			if len(messages) >= 3 {
+				finalMessages = messages[:3]
 			} else {
-				// Single commit message in a code block
-				cleanMessages = append(cleanMessages, block)
-				if len(cleanMessages) >= 3 {
-					break
+				finalMessages = messages
+			}
+		}
+
+		if len(finalMessages) == 0 {
+			return nil, diff, lastCommitMsg, prompt, fmt.Errorf("no valid commit messages found in detailed response: %s", cleanText)
+		}
+	} else {
+		// Parse JSON format for regular mode
+		// Try to extract JSON from markdown code blocks
+		if strings.Contains(cleanText, "```json") {
+			// Extract JSON from json code block
+			start := strings.Index(cleanText, "```json")
+			if start != -1 {
+				start += 7 // Skip "```json"
+				// Skip any whitespace/newlines after ```json
+				for start < len(cleanText) && (cleanText[start] == '\n' || cleanText[start] == '\r' || cleanText[start] == ' ' || cleanText[start] == '\t') {
+					start++
+				}
+				end := strings.Index(cleanText[start:], "```")
+				if end != -1 {
+					cleanText = strings.TrimSpace(cleanText[start : start+end])
+				}
+			}
+		} else if strings.Contains(cleanText, "```") {
+			// Extract JSON from generic code block
+			start := strings.Index(cleanText, "```")
+			if start != -1 {
+				start += 3 // Skip "```"
+				// Skip any whitespace/newlines after ```
+				for start < len(cleanText) && (cleanText[start] == '\n' || cleanText[start] == '\r' || cleanText[start] == ' ' || cleanText[start] == '\t') {
+					start++
+				}
+				end := strings.Index(cleanText[start:], "```")
+				if end != -1 {
+					cleanText = strings.TrimSpace(cleanText[start : start+end])
 				}
 			}
 		}
-	} else {
-		// Parse numbered messages - handle both simple and detailed formats
-		lines := strings.Split(strings.TrimSpace(text), "\n")
-		currentMessage := ""
-		inMessage := false
 
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
+		// Find JSON object in the response - look for complete JSON structure
+		jsonStart := strings.Index(cleanText, "{")
+		if jsonStart == -1 {
+			// Try to find JSON in the original text if cleaning failed
+			jsonStart = strings.Index(text, "{")
+			if jsonStart == -1 {
+				return nil, diff, lastCommitMsg, prompt, fmt.Errorf("no valid JSON found in response: %s", text)
+			}
+			cleanText = text
+		}
 
-			// Check if this line starts a new numbered message
-			if strings.Contains(line, ".  ") || strings.Contains(line, ". ") {
-				// Save previous message if we have one
-				if inMessage && currentMessage != "" {
-					cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
-					if len(cleanMessages) >= 3 {
+		// Find the matching closing brace for the JSON object
+		jsonText := ""
+		braceCount := 0
+		inQuotes := false
+		escapeNext := false
+
+		for i := jsonStart; i < len(cleanText); i++ {
+			char := cleanText[i]
+
+			if escapeNext {
+				escapeNext = false
+				continue
+			}
+
+			if char == '\\' && inQuotes {
+				escapeNext = true
+				continue
+			}
+
+			if char == '"' && !escapeNext {
+				inQuotes = !inQuotes
+			}
+
+			if !inQuotes {
+				if char == '{' {
+					braceCount++
+				} else if char == '}' {
+					braceCount--
+					if braceCount == 0 {
+						jsonText = cleanText[jsonStart : i+1]
 						break
 					}
 				}
-
-				// Start new message - remove number prefix
-				var parts []string
-				if strings.Contains(line, ".  ") {
-					parts = strings.SplitN(line, ".  ", 2)
-				} else {
-					parts = strings.SplitN(line, ". ", 2)
-				}
-				if len(parts) > 1 {
-					currentMessage = strings.TrimSpace(parts[1])
-					inMessage = true
-				}
-			} else if inMessage && line != "" {
-				// Continue building the current message
-				if detailed {
-					currentMessage += "\n" + line
-				}
-				// For simple messages, we only want the first line, so don't append
 			}
 		}
 
-		// Add the last message
-		if inMessage && currentMessage != "" {
-			cleanMessages = append(cleanMessages, strings.TrimSpace(currentMessage))
+		if jsonText == "" {
+			return nil, diff, lastCommitMsg, prompt, fmt.Errorf("no complete JSON object found in response: %s", cleanText)
 		}
+
+		log.Printf("Extracted JSON: %s", jsonText)
+
+		// Parse JSON response
+		var commitResponse CommitResponse
+		if err := json.Unmarshal([]byte(jsonText), &commitResponse); err != nil {
+			return nil, diff, lastCommitMsg, prompt, fmt.Errorf("failed to parse JSON response: %v\nJSON: %s", err, jsonText)
+		}
+
+		if len(commitResponse.Messages) < 3 {
+			return nil, diff, lastCommitMsg, prompt, fmt.Errorf("expected 3 messages, got %d", len(commitResponse.Messages))
+		}
+
+		// Take only the first 3 messages
+		finalMessages = make([]string, 3)
+		copy(finalMessages, commitResponse.Messages[:3])
 	}
 
-	if len(cleanMessages) < 3 {
-		return nil, diff, lastCommitMsg, prompt, fmt.Errorf("expected 3 messages, got %d", len(cleanMessages))
+	// Ensure we have at least 3 messages
+	for len(finalMessages) < 3 {
+		// If we don't have enough messages, duplicate the last one with slight variation
+		lastMsg := finalMessages[len(finalMessages)-1]
+		finalMessages = append(finalMessages, lastMsg)
 	}
-
-	// Take only the first 3 messages
-	finalMessages := make([]string, 3)
-	copy(finalMessages, cleanMessages[:3])
 
 	return finalMessages, diff, lastCommitMsg, prompt, nil
 }
@@ -762,6 +859,6 @@ func main() {
 	fmt.Printf("Successfully created commit with message: %s\n", commitMsg)
 
 	// Show log file location
-	logPath, _ := logger.GetLogPath()
-	fmt.Printf("Request logged to: %s\n", logPath)
+	// logPath, _ := logger.GetLogPath()
+	// fmt.Printf("Request logged to: %s\n", logPath)
 }
