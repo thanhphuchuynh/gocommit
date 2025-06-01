@@ -14,6 +14,7 @@ const (
 type Config struct {
 	APIKey         string `json:"api_key"`
 	LoggingEnabled bool   `json:"logging_enabled"`
+	IconMode       bool   `json:"icon_mode"`
 }
 
 func getConfigPath() (string, error) {
@@ -106,5 +107,24 @@ func SetLoggingEnabled(enabled bool) error {
 	}
 
 	config.LoggingEnabled = enabled
+	return SaveConfig(config)
+}
+
+func IsIconModeEnabled() (bool, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return false, err
+	}
+
+	return config.IconMode, nil
+}
+
+func SetIconMode(enabled bool) error {
+	config, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	config.IconMode = enabled
 	return SaveConfig(config)
 }

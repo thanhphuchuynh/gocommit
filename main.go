@@ -152,6 +152,148 @@ Includes changes to gracefully handle API request failures.
 
 Return only the 3 commit messages in the format shown above with no additional text.`
 
+const iconPromptTemplate = `You are an expert at writing conventional commit messages with emoji icons. Analyze the git diff and generate 3 high-quality commit messages using emoji icons.
+
+## Conventional Commit Format with Icons
+emoji type(optional-scope): description
+
+## Available Types with Icons
+- ✨ feat: new feature for users
+- 🐛 fix: bug fix for users
+- 📖 docs: documentation changes
+- 💄 style: formatting, missing semicolons, etc (no code change)
+- 🛠 refactor: code change that neither fixes bug nor adds feature
+- ⚡️ perf: code change that improves performance
+- ✅ test: adding/updating tests
+- 📦 build: changes that affect the build system or external dependencies
+- ⚙️ ci: changes to CI configuration files and scripts
+- 🚀 chore: other changes that don't modify src or test files
+- 🗑 revert: reverts a previous commit
+- 🤞 try: add untested to production
+- 🎉 init: project init
+
+## Scope Guidelines
+- Use specific component/module names when applicable
+- Examples: api, ui, auth, config, database, utils
+- Omit scope if change affects multiple areas
+
+## Git Diff
+%s
+
+## Last Commit (for style reference)
+%s
+
+## Requirements
+1. Max 200 characters (industry standard)
+2. Use imperative mood ("add" not "added" or "adds")
+3. No period at the end
+4. Scope should reflect the actual changed component
+5. Description should explain WHAT changed, not WHY
+6. Be specific about the actual changes in the diff
+7. Always start with the appropriate emoji icon
+
+## Examples
+- ✨ feat(auth): add OAuth2 login support
+- 🐛 fix(api): handle null response in user endpoint
+- 🛠 refactor(utils): extract validation logic to separate module
+- 📖 docs(readme): update installation instructions
+- 💄 style(components): fix indentation in header component
+
+Generate exactly 3 different commit messages in JSON format:
+
+{
+  "messages": [
+    "✨ feat(scope): commit message 1",
+    "🐛 fix(scope): commit message 2",
+    "🛠 refactor(scope): commit message 3"
+  ]
+}
+
+Return only valid JSON with no additional text.`
+
+const iconDetailedPromptTemplate = `You are an expert at writing conventional commit messages with emoji icons. Analyze the git diff and generate 3 high-quality, detailed commit messages using emoji icons.
+
+## Conventional Commit Format with Icons
+emoji type(optional-scope): description
+
+Detailed description explaining what was changed and why.
+
+## Available Types with Icons
+- ✨ feat: new feature for users
+- 🐛 fix: bug fix for users
+- 📖 docs: documentation changes
+- 💄 style: formatting, missing semicolons, etc (no code change)
+- 🛠 refactor: code change that neither fixes bug nor adds feature
+- ⚡️ perf: code change that improves performance
+- ✅ test: adding/updating tests
+- 📦 build: changes that affect the build system or external dependencies
+- ⚙️ ci: changes to CI configuration files and scripts
+- 🚀 chore: other changes that don't modify src or test files
+- 🗑 revert: reverts a previous commit
+- 🤞 try: add untested to production
+- 🎉 init: project init
+
+## Scope Guidelines
+- Use specific component/module names when applicable
+- Examples: api, ui, auth, config, database, utils
+- Omit scope if change affects multiple areas
+
+## Git Diff
+%s
+
+## Last Commit (for style reference)
+%s
+
+## Requirements
+1. Subject line: max 200 characters (industry standard)
+2. Use imperative mood ("add" not "added" or "adds")
+3. No period at the end of subject line
+4. Scope should reflect the actual changed component
+5. Subject should explain WHAT changed
+6. Body should explain WHY and HOW in more detail
+7. Be specific about the actual changes in the diff
+8. Include technical details and context in the body
+9. Always start with the appropriate emoji icon
+
+## Examples
+✨ feat(auth): add OAuth2 login support
+
+Implements OAuth2 authentication flow with Google and GitHub providers.
+Adds token validation, refresh mechanism, and user profile fetching.
+Includes comprehensive error handling for failed authentication attempts.
+
+🐛 fix(api): handle null response in user endpoint
+
+Prevents application crash when user data is missing from database.
+Adds null checks and default values for required user fields.
+Improves error messaging for better debugging experience.
+
+Generate exactly 3 different detailed commit messages with body text. Format them as:
+
+✨ feat: enhance commit message generation with JSON output
+
+Refactors the commit message generation process to return responses in JSON format.
+This change ensures a structured and parsable output, improving integration with other tools.
+Updates prompt templates to explicitly request JSON formatted messages and removes parsing logic.
+
+---
+
+🐛 fix: correct JSON parsing in commit message generation
+
+Addresses an issue where the JSON output from the AI model was not correctly parsed.
+Improves JSON extraction from the response by handling potential code blocks.
+Adds more robust error handling and logging for debugging JSON parsing failures.
+
+---
+
+🚀 chore: update dependencies and improve error handling
+
+Updates the go.mod and go.sum files to include the latest dependencies.
+Improves error handling throughout the application, providing more informative error messages.
+Includes changes to gracefully handle API request failures.
+
+Return only the 3 commit messages in the format shown above with no additional text.`
+
 func getGitDiff() (string, error) {
 	cmd := exec.Command("git", "diff", "--cached")
 	output, err := cmd.Output()
@@ -161,7 +303,7 @@ func getGitDiff() (string, error) {
 	return string(output), nil
 }
 
-func generateCommitMessages(diff string, apiKey string, detailed bool) ([]string, string, string, string, error) {
+func generateCommitMessages(diff string, apiKey string, detailed bool, iconMode bool) ([]string, string, string, string, error) {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
@@ -178,10 +320,18 @@ func generateCommitMessages(diff string, apiKey string, detailed bool) ([]string
 
 	model := client.GenerativeModel("gemini-2.0-flash")
 	var prompt string
-	if detailed {
-		prompt = fmt.Sprintf(detailedPromptTemplate, diff, lastCommitMsg)
+	if iconMode {
+		if detailed {
+			prompt = fmt.Sprintf(iconDetailedPromptTemplate, diff, lastCommitMsg)
+		} else {
+			prompt = fmt.Sprintf(iconPromptTemplate, diff, lastCommitMsg)
+		}
 	} else {
-		prompt = fmt.Sprintf(promptTemplate, diff, lastCommitMsg)
+		if detailed {
+			prompt = fmt.Sprintf(detailedPromptTemplate, diff, lastCommitMsg)
+		} else {
+			prompt = fmt.Sprintf(promptTemplate, diff, lastCommitMsg)
+		}
 	}
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
@@ -195,7 +345,7 @@ func generateCommitMessages(diff string, apiKey string, detailed bool) ([]string
 
 	// Get the text content from the response
 	text := ""
-	// fmt.Printf("Generated response: %+v \n", resp.Candidates[0].Content.Parts)
+	fmt.Printf("Generated response: %+v \n", resp.Candidates[0].Content.Parts)
 
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if str, ok := part.(genai.Text); ok {
@@ -791,6 +941,7 @@ func main() {
 	detailedFlag := flag.Bool("d", false, "Generate detailed commit messages with body text")
 	enableLoggingFlag := flag.Bool("enable-logging", false, "Enable request logging to file")
 	disableLoggingFlag := flag.Bool("disable-logging", false, "Disable request logging to file")
+	iconFlag := flag.Bool("icon", false, "Use emoji icons in commit messages")
 	flag.Parse()
 
 	// Handle logging configuration flags
@@ -847,7 +998,7 @@ func main() {
 		log.Fatal("No staged changes found. Please stage your changes using 'git add' first.")
 	}
 
-	messages, gitDiff, lastCommitMsg, prompt, err := generateCommitMessages(diff, apiKey, *detailedFlag)
+	messages, gitDiff, lastCommitMsg, prompt, err := generateCommitMessages(diff, apiKey, *detailedFlag, *iconFlag)
 	if err != nil {
 		// Log error
 		logger.LogError(gitDiff, lastCommitMsg, prompt, err.Error())
