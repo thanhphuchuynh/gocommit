@@ -143,7 +143,14 @@ This provides insights into:
 - User choice preferences
 - Daily activity patterns
 
-For detailed logging documentation, see [README_LOGGING.md](README_LOGGING.md).
+For detailed logging documentation, see [README_LOGGING_CONFIG.md](README_LOGGING_CONFIG.md).
+
+## Project Documentation
+
+- **[FLOW.md](FLOW.md)** - Complete project workflow and architecture documentation
+- **[INSTALL.md](INSTALL.md)** - Detailed installation instructions
+- **[README_GITHUB_ACTIONS.md](README_GITHUB_ACTIONS.md)** - CI/CD documentation
+- **[README_LOGGING_CONFIG.md](README_LOGGING_CONFIG.md)** - Logging configuration
 
 ## License
 
