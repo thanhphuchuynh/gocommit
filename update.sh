@@ -62,7 +62,7 @@ fi
 
 # Build the application
 echo "Building updated GoCommit..."
-go build
+go build -o gocommit
 
 # Check if build was successful
 if [ ! -f "gocommit" ]; then
