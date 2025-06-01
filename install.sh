@@ -5,13 +5,18 @@
 
 set -e
 
+# Disable colors if piped or redirected
+if [ ! -t 1 ] || [ -n "${NO_COLOR:-}" ]; then
+    export NO_COLOR=1
+fi
+
 # Default values
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 REPO="thanhphuchuynh/gocommit"
 BINARY_NAME="gocommit"
 
 # Colors for output (only when output is a terminal and not piped)
-if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != "dumb" ]; then
+if [ -z "${NO_COLOR:-}" ] && [ -t 1 ] && [ "${TERM:-}" != "dumb" ]; then
     RED='\033[0;31m'
     GREEN='\033[0;32m'
     YELLOW='\033[1;33m'
@@ -27,19 +32,19 @@ fi
 
 # Functions
 log_info() {
-    echo "${BLUE}[INFO]${NC} $1"
+    echo "${BLUE}[INFO]${NC} $1" >&2
 }
 
 log_success() {
-    echo "${GREEN}[SUCCESS]${NC} $1"
+    echo "${GREEN}[SUCCESS]${NC} $1" >&2
 }
 
 log_warning() {
-    echo "${YELLOW}[WARNING]${NC} $1"
+    echo "${YELLOW}[WARNING]${NC} $1" >&2
 }
 
 log_error() {
-    echo "${RED}[ERROR]${NC} $1"
+    echo "${RED}[ERROR]${NC} $1" >&2
 }
 
 # Detect OS and architecture
@@ -126,15 +131,24 @@ download_binary() {
     log_info "Downloading from: $download_url"
     
     if command -v curl >/dev/null 2>&1; then
-        if curl -L -o "$temp_file" "$download_url" --silent --show-error --fail; then
+        if curl -L -o "$temp_file" "$download_url" --silent --show-error --fail --location --max-redirs 5; then
             log_success "Downloaded successfully"
         else
-            log_error "Download failed with curl. URL: $download_url"
-            log_error "Please check if the release exists and try again"
-            return 1
+            curl_exit_code=$?
+            log_error "Download failed with curl (exit code: $curl_exit_code)"
+            log_error "URL: $download_url"
+            log_error "Temp file: $temp_file"
+            # Try without --fail to see what happens
+            log_info "Trying download without --fail flag..."
+            if curl -L -o "$temp_file" "$download_url" --silent --show-error --location --max-redirs 5; then
+                log_success "Downloaded without --fail flag"
+            else
+                log_error "Download failed completely"
+                return 1
+            fi
         fi
     elif command -v wget >/dev/null 2>&1; then
-        if wget -O "$temp_file" "$download_url" --quiet; then
+        if wget -O "$temp_file" "$download_url" --quiet --max-redirect=5; then
             log_success "Downloaded successfully"
         else
             log_error "Download failed with wget. URL: $download_url"
