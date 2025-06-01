@@ -10,28 +10,36 @@ INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 REPO="thanhphuchuynh/gocommit"
 BINARY_NAME="gocommit"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Colors for output (only when output is a terminal)
+if [ -t 1 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    NC=''
+fi
 
 # Functions
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo "${BLUE}[INFO]${NC} $1"
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo "${GREEN}[SUCCESS]${NC} $1"
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo "${YELLOW}[WARNING]${NC} $1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo "${RED}[ERROR]${NC} $1"
 }
 
 # Detect OS and architecture
@@ -113,7 +121,7 @@ download_binary() {
         download_url="${download_url}.exe"
     fi
     
-    temp_file="/tmp/$BINARY_NAME"
+    temp_file="/tmp/gocommit-$$-$(date +%s)"
     
     log_info "Downloading from: $download_url"
     
@@ -121,26 +129,34 @@ download_binary() {
         if curl -L -o "$temp_file" "$download_url" --silent --show-error; then
             log_success "Downloaded successfully"
         else
-            log_error "Download failed"
-            exit 1
+            log_error "Download failed with curl"
+            return 1
         fi
     elif command -v wget >/dev/null 2>&1; then
         if wget -O "$temp_file" "$download_url" --quiet; then
             log_success "Downloaded successfully"
         else
-            log_error "Download failed"
-            exit 1
+            log_error "Download failed with wget"
+            return 1
         fi
     else
         log_error "curl or wget is required to download the binary"
-        exit 1
+        return 1
     fi
     
     if [ ! -f "$temp_file" ]; then
-        log_error "Download failed - file not found"
-        exit 1
+        log_error "Download failed - file not found at $temp_file"
+        return 1
     fi
     
+    # Verify file is not empty
+    if [ ! -s "$temp_file" ]; then
+        log_error "Downloaded file is empty"
+        rm -f "$temp_file"
+        return 1
+    fi
+    
+    log_info "Downloaded to: $temp_file"
     echo "$temp_file"
 }
 
