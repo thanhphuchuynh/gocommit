@@ -268,31 +268,17 @@ Prevents application crash when user data is missing from database.
 Adds null checks and default values for required user fields.
 Improves error messaging for better debugging experience.
 
-Generate exactly 3 different detailed commit messages with body text. Format them as:
+Generate exactly 3 different detailed commit messages with body text in JSON format:
 
-✨ feat: enhance commit message generation with JSON output
+{
+  "messages": [
+    "✨ feat: enhance commit message generation with JSON output\n\nRefactors the commit message generation process to return responses in JSON format.\nThis change ensures a structured and parsable output, improving integration with other tools.\nUpdates prompt templates to explicitly request JSON formatted messages and removes parsing logic.",
+    "🐛 fix: correct JSON parsing in commit message generation\n\nAddresses an issue where the JSON output from the AI model was not correctly parsed.\nImproves JSON extraction from the response by handling potential code blocks.\nAdds more robust error handling and logging for debugging JSON parsing failures.",
+    "🚀 chore: update dependencies and improve error handling\n\nUpdates the go.mod and go.sum files to include the latest dependencies.\nImproves error handling throughout the application, providing more informative error messages.\nIncludes changes to gracefully handle API request failures."
+  ]
+}
 
-Refactors the commit message generation process to return responses in JSON format.
-This change ensures a structured and parsable output, improving integration with other tools.
-Updates prompt templates to explicitly request JSON formatted messages and removes parsing logic.
-
----
-
-🐛 fix: correct JSON parsing in commit message generation
-
-Addresses an issue where the JSON output from the AI model was not correctly parsed.
-Improves JSON extraction from the response by handling potential code blocks.
-Adds more robust error handling and logging for debugging JSON parsing failures.
-
----
-
-🚀 chore: update dependencies and improve error handling
-
-Updates the go.mod and go.sum files to include the latest dependencies.
-Improves error handling throughout the application, providing more informative error messages.
-Includes changes to gracefully handle API request failures.
-
-Return only the 3 commit messages in the format shown above with no additional text.`
+Return only valid JSON with no additional text.`
 
 func getGitDiff() (string, error) {
 	cmd := exec.Command("git", "diff", "--cached")
@@ -345,7 +331,7 @@ func generateCommitMessages(diff string, apiKey string, detailed bool, iconMode 
 
 	// Get the text content from the response
 	text := ""
-	fmt.Printf("Generated response: %+v \n", resp.Candidates[0].Content.Parts)
+	// fmt.Printf("Generated response: %+v \n", resp.Candidates[0].Content.Parts)
 
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if str, ok := part.(genai.Text); ok {
@@ -360,8 +346,8 @@ func generateCommitMessages(diff string, apiKey string, detailed bool, iconMode 
 	// log.Printf("Raw AI response: %s", text)
 	var finalMessages []string
 
-	if detailed {
-		// Parse detailed format (plain text with --- separators)
+	if detailed && !iconMode {
+		// Parse detailed format (plain text with --- separators) for non-icon mode only
 		// Split by --- separators and extract commit messages
 		parts := strings.Split(cleanText, "---")
 		for _, part := range parts {
