@@ -492,7 +492,7 @@ func generateCommitMessages(diff string, apiKey string, detailed bool, iconMode 
 			return nil, diff, lastCommitMsg, prompt, fmt.Errorf("no complete JSON object found in response: %s", cleanText)
 		}
 
-		log.Printf("Extracted JSON: %s", jsonText)
+		// log.Printf("Extracted JSON: %s", jsonText)
 
 		// Parse JSON response
 		var commitResponse CommitResponse
