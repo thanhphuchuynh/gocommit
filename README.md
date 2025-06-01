@@ -23,77 +23,54 @@ An AI-powered git commit message generator using Google's Gemini API. This tool 
 
 ## Installation
 
-### Option 1: One-command Installation (Recommended)
-Run this command in your terminal:
+### Quick Installation (Recommended)
+
+#### Linux / macOS / FreeBSD
 ```bash
 curl -sSL https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/install.sh | bash
 ```
-or using wget:
-```bash
-wget -qO- https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/install.sh | bash
+
+#### Windows (PowerShell)
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/install.ps1" -OutFile "install.ps1"; .\install.ps1
 ```
 
-The script will:
-1. Download the latest version
-2. Check for required dependencies
-3. Build the application
-4. Install it system-wide
-5. Set proper permissions
+### Manual Installation
 
-### Option 2: Manual Installation
-1. Clone the repository:
+#### Download Pre-built Binaries
+Visit the [releases page](https://github.com/thanhphuchuynh/gocommit/releases/latest) and download the appropriate binary:
+
+- **Linux x64**: `gocommit-linux-amd64`
+- **Linux ARM64**: `gocommit-linux-arm64`
+- **macOS x64**: `gocommit-darwin-amd64`
+- **macOS ARM64** (Apple Silicon): `gocommit-darwin-arm64`
+- **Windows x64**: `gocommit-windows-amd64.exe`
+- **FreeBSD x64**: `gocommit-freebsd-amd64`
+
+#### Build from Source
 ```bash
 git clone https://github.com/thanhphuchuynh/gocommit.git
 cd gocommit
+go build -o gocommit
 ```
 
-2. Install dependencies:
+For detailed installation instructions, see [INSTALL.md](INSTALL.md).
+
+## Updating
+
+To update to the latest version, simply re-run the installation command:
+
+**Linux/macOS:**
 ```bash
-go mod download
+curl -sSL https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/install.sh | bash
 ```
 
-3. Build the application:
-```bash
-go build
+**Windows:**
+```powershell
+.\install.ps1
 ```
 
-4. Move the binary to a directory in your PATH:
-```bash
-# For macOS/Linux
-sudo mv gocommit /usr/local/bin/
-
-# For Windows (using PowerShell as admin)
-Move-Item gocommit.exe C:\Windows\System32\
-```
-
-## Updates
-
-To update GoCommit to the latest version:
-
-### Option 1: One-command Update (Recommended)
-Run this command in your terminal:
-```bash
-curl -sSL https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/update.sh | bash
-```
-or using wget:
-```bash
-wget -qO- https://raw.githubusercontent.com/thanhphuchuynh/gocommit/main/update.sh | bash
-```
-
-### Option 2: Manual Update
-If you have the repository cloned locally:
-```bash
-cd gocommit
-./update.sh
-```
-
-The update script will:
-1. Check if GoCommit is currently installed
-2. Download the latest version from GitHub
-3. Build the updated application
-4. Backup your current version with timestamp
-5. Install the new version system-wide
-6. Preserve your existing API key and configuration
+Or download the latest binary from the [releases page](https://github.com/thanhphuchuynh/gocommit/releases/latest).
 
 ## Configuration
 
