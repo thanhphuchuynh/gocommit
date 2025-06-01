@@ -10,8 +10,8 @@ INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 REPO="thanhphuchuynh/gocommit"
 BINARY_NAME="gocommit"
 
-# Colors for output (only when output is a terminal)
-if [ -t 1 ]; then
+# Colors for output (only when output is a terminal and not piped)
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != "dumb" ]; then
     RED='\033[0;31m'
     GREEN='\033[0;32m'
     YELLOW='\033[1;33m'
@@ -126,17 +126,19 @@ download_binary() {
     log_info "Downloading from: $download_url"
     
     if command -v curl >/dev/null 2>&1; then
-        if curl -L -o "$temp_file" "$download_url" --silent --show-error; then
+        if curl -L -o "$temp_file" "$download_url" --silent --show-error --fail; then
             log_success "Downloaded successfully"
         else
-            log_error "Download failed with curl"
+            log_error "Download failed with curl. URL: $download_url"
+            log_error "Please check if the release exists and try again"
             return 1
         fi
     elif command -v wget >/dev/null 2>&1; then
         if wget -O "$temp_file" "$download_url" --quiet; then
             log_success "Downloaded successfully"
         else
-            log_error "Download failed with wget"
+            log_error "Download failed with wget. URL: $download_url"
+            log_error "Please check if the release exists and try again"
             return 1
         fi
     else
