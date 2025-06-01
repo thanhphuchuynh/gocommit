@@ -1,4 +1,4 @@
-name: Continuous Integration
+Missing download info for actions/upload-artifact@v3name: Continuous Integration
 
 on:
   push:
@@ -105,7 +105,7 @@ jobs:
         ./gocommit --version || ./gocommit --help || echo "Executable built successfully"
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: gocommit-${{ matrix.os }}
         path: gocommit
