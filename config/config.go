@@ -293,7 +293,7 @@ func ValidateOpenRouterAPIKey(apiKey string) error {
 
 // HandleConfigureAPIKey handles the --config flag for configuring AI provider and API key
 func HandleConfigureAPIKey() error {
-	fmt.Println("\n=== GoCommit Configuration ===\n")
+	fmt.Print("\n=== GoCommit Configuration ===\n")
 
 	// Step 1: Choose provider
 	fmt.Println("Select AI Provider:")
