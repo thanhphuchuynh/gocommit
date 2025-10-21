@@ -5,7 +5,7 @@ Welcome to the GoCommit documentation! This collection provides comprehensive gu
 ## 📖 Documentation Index
 
 ### Getting Started
-- **[Main README](../README.md)** - Overview, installation, and basic usage
+- Overview, installation, and basic usage
 - **[Installation Guide](INSTALL.md)** - Detailed installation instructions
 
 ### Features & Architecture

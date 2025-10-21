@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines a comprehensive refactoring plan to split [`main.go`](main.go:1) (1649 lines) into a modular, maintainable architecture following clean code principles and functional programming patterns where appropriate.
+This document outlines a comprehensive refactoring plan to split main.go (1649 lines) into a modular, maintainable architecture following clean code principles and functional programming patterns where appropriate.
 
 **Current State**: Monolithic 1649-line main.go with mixed concerns  
 **Target State**: Modular architecture with clear separation of concerns  

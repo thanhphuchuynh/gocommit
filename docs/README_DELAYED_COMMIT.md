@@ -124,7 +124,7 @@ gocommit --config-delayed
 
 ### Configuration File
 
-Settings are stored in [`~/.gocommit.json`](config/config.go:11):
+Settings are stored in ~/.gocommit.json:
 
 ```json
 {
@@ -775,7 +775,7 @@ This gives you a buffer - commits will be suggested starting at 6:00 PM.
 - [Main README](README.md) - General gocommit documentation
 - [Architecture Document](DELAYED_COMMIT_ARCHITECTURE.md) - Technical implementation details
 - [Installation Guide](INSTALL.md) - Setup instructions
-- [Configuration Guide](config/config.go) - Config file structure
+- Configuration Guide - Config file structure
 
 ---
 

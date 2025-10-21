@@ -38,7 +38,7 @@ Based on user requirements and clarifications:
 3. **Date Handling**: Today only (use immediate time if no available time today)
 4. **Default Behavior**: Show time selection UI immediately when committing during restricted hours
 5. **Git Integration**: Use `git commit --date` for custom timestamps
-6. **Configuration**: Toggle feature on/off in [`~/.gocommit.json`](config/config.go:11)
+6. **Configuration**: Toggle feature on/off in ~/.gocommit.json
 
 ---
 
@@ -110,7 +110,7 @@ Based on user requirements and clarifications:
 
 ### Extended Config Structure
 
-Add to [`config/config.go:14`](config/config.go:14):
+Add to config/config.go:
 
 ```go
 type Config struct {
@@ -412,7 +412,7 @@ func handleDelayedCommit(config DelayedCommitConfig) (time.Time, bool, error)
 
 ### 1. Configuration Integration (config/config.go)
 
-**Location**: After [`SetIconMode()`](config/config.go:122)
+**Location**: After SetIconMode()
 
 **New Functions to Add**:
 ```go
