@@ -41,7 +41,7 @@ type(optional-scope): description
 - docs(readme): update installation instructions
 - style(components): fix indentation in header component
 
-Generate exactly 3 different commit messages in JSON format:
+Generate exactly 3 different commit messages in this EXACT JSON format:
 
 {
   "messages": [
@@ -51,7 +51,12 @@ Generate exactly 3 different commit messages in JSON format:
   ]
 }
 
-Return only valid JSON with no additional text.`
+CRITICAL:
+- Return ONLY the JSON object above
+- Each message must be a complete string in the "messages" array
+- Do NOT return an array of objects
+- Do NOT add any text before or after the JSON
+- The JSON must have exactly one key "messages" containing an array of 3 strings`
 
 const detailedPromptTemplate = `You are an expert at writing conventional commit messages. Analyze the git diff and generate 3 high-quality, detailed commit messages.
 
@@ -177,7 +182,7 @@ emoji type(optional-scope): description
 - 📖 docs(readme): update installation instructions
 - 💄 style(components): fix indentation in header component
 
-Generate exactly 3 different commit messages in JSON format:
+Generate exactly 3 different commit messages in this EXACT JSON format:
 
 {
   "messages": [
@@ -187,7 +192,12 @@ Generate exactly 3 different commit messages in JSON format:
   ]
 }
 
-Return only valid JSON with no additional text.`
+CRITICAL:
+- Return ONLY the JSON object above
+- Each message must be a complete string starting with an emoji in the "messages" array
+- Do NOT return an array of objects
+- Do NOT add any text before or after the JSON
+- The JSON must have exactly one key "messages" containing an array of 3 strings`
 
 const iconDetailedPromptTemplate = `You are an expert at writing conventional commit messages with emoji icons. Analyze the git diff and generate 3 high-quality, detailed commit messages using emoji icons.
 
@@ -246,7 +256,7 @@ Prevents application crash when user data is missing from database.
 Adds null checks and default values for required user fields.
 Improves error messaging for better debugging experience.
 
-Generate exactly 3 different detailed commit messages with body text in JSON format:
+Generate exactly 3 different detailed commit messages with body text in this EXACT JSON format:
 
 {
   "messages": [
@@ -256,7 +266,13 @@ Generate exactly 3 different detailed commit messages with body text in JSON for
   ]
 }
 
-Return only valid JSON with no additional text.`
+CRITICAL:
+- Return ONLY the JSON object above
+- Each message must be a complete string with emoji, title, blank line (\\n\\n), and body text
+- Do NOT return an array of objects with separate fields
+- Do NOT add any text before or after the JSON
+- The JSON must have exactly one key "messages" containing an array of 3 strings
+- Each string in the array contains the full commit message including body separated by \\n\\n`
 
 // GetPromptTemplate returns the appropriate prompt template based on options
 func GetPromptTemplate(detailed, useIcons bool) string {

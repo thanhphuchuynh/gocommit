@@ -54,6 +54,10 @@ func (g *GeminiProvider) GenerateMessages(ctx context.Context, req *GenerateRequ
 
 	model := client.GenerativeModel("gemini-2.0-flash")
 
+	// Configure model for more consistent responses
+	temperature := float32(0.3) // Lower temperature for more consistent JSON
+	model.SetTemperature(temperature)
+
 	// Get the appropriate prompt template
 	promptTemplate := GetPromptTemplate(req.Detailed, req.UseIcons)
 	prompt := fmt.Sprintf(promptTemplate, req.Diff, req.LastCommit)

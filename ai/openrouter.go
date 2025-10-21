@@ -19,8 +19,22 @@ type OpenRouterProvider struct {
 
 // OpenRouterRequest represents the request format for OpenRouter API
 type OpenRouterRequest struct {
-	Model    string              `json:"model"`
-	Messages []OpenRouterMessage `json:"messages"`
+	Model          string                 `json:"model"`
+	Messages       []OpenRouterMessage    `json:"messages"`
+	ResponseFormat *OpenRouterResponseFmt `json:"response_format,omitempty"`
+}
+
+// OpenRouterResponseFmt specifies the format for structured outputs
+type OpenRouterResponseFmt struct {
+	Type       string                `json:"type"`
+	JSONSchema *OpenRouterJSONSchema `json:"json_schema,omitempty"`
+}
+
+// OpenRouterJSONSchema defines the JSON schema for structured output
+type OpenRouterJSONSchema struct {
+	Name   string         `json:"name"`
+	Schema map[string]any `json:"schema"`
+	Strict bool           `json:"strict"`
 }
 
 // OpenRouterMessage represents a message in the request
@@ -60,9 +74,45 @@ func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *Generate
 	promptTemplate := GetPromptTemplate(req.Detailed, req.UseIcons)
 	prompt := fmt.Sprintf(promptTemplate, req.Diff, req.LastCommit)
 
+	// Prepare response format for JSON structured output (except for detailed non-icon mode)
+	// Only enable for models that support structured outputs
+	var responseFormat *OpenRouterResponseFmt
+	if !(req.Detailed && !req.UseIcons) {
+		useStrictSchema := true
+
+		if useStrictSchema {
+			// Use strict JSON schema for OpenAI models that support it
+			responseFormat = &OpenRouterResponseFmt{
+				Type: "json_schema",
+				JSONSchema: &OpenRouterJSONSchema{
+					Name: "commit_messages",
+					Schema: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"messages": map[string]any{
+								"type": "array",
+								"items": map[string]any{
+									"type": "string",
+								},
+								"minItems": 3,
+								"maxItems": 3,
+							},
+						},
+						"required":             []string{"messages"},
+						"additionalProperties": false,
+					},
+					Strict: true,
+				},
+			}
+		}
+		// For other models (Gemini, Claude, Llama), rely on strong prompting
+		// Don't set response_format as many models don't support it
+	}
+
 	// Prepare the request payload
 	requestBody := OpenRouterRequest{
-		Model: p.model,
+		Model:          p.model,
+		ResponseFormat: responseFormat,
 		Messages: []OpenRouterMessage{
 			{
 				Role:    "user",
@@ -164,8 +214,11 @@ func (p *OpenRouterProvider) parseResponse(text string, detailed, useIcons bool)
 	if detailed && !useIcons {
 		// Parse detailed format (plain text with --- separators) for non-icon mode only
 		finalMessages = p.parseDetailedResponse(cleanText)
+	} else if detailed && useIcons {
+		// Parse JSON format for detailed icon mode - messages contain newlines for body
+		finalMessages = p.parseJSONResponse(cleanText)
 	} else {
-		// Parse JSON format for regular mode
+		// Parse JSON format for regular mode (with or without icons)
 		finalMessages = p.parseJSONResponse(cleanText)
 	}
 
@@ -203,7 +256,7 @@ func (p *OpenRouterProvider) parseDetailedResponse(cleanText string) []string {
 
 	// If we don't have 3 messages from --- separator, try alternative parsing
 	if len(finalMessages) < 3 {
-		// Look for commit messages that start with type prefixes
+		// Look for commit messages that start with type prefixes (with or without emoji)
 		lines := strings.Split(cleanText, "\n")
 		var currentMessage strings.Builder
 		messages := []string{}
@@ -211,6 +264,10 @@ func (p *OpenRouterProvider) parseDetailedResponse(cleanText string) []string {
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 			if line == "" {
+				// Empty line might separate commit messages or be part of body
+				if currentMessage.Len() > 0 {
+					currentMessage.WriteString("\n")
+				}
 				continue
 			}
 
@@ -225,7 +282,12 @@ func (p *OpenRouterProvider) parseDetailedResponse(cleanText string) []string {
 				currentMessage.WriteString(line)
 			} else if currentMessage.Len() > 0 {
 				// Add to current message body
-				currentMessage.WriteString("\n" + line)
+				// Check if current message already ends with newline
+				currentStr := currentMessage.String()
+				if !strings.HasSuffix(currentStr, "\n") {
+					currentMessage.WriteString("\n")
+				}
+				currentMessage.WriteString(line)
 			}
 		}
 
@@ -244,21 +306,34 @@ func (p *OpenRouterProvider) parseDetailedResponse(cleanText string) []string {
 	return finalMessages
 }
 
-// isCommitMessageStart checks if a line starts with a commit type
+// isCommitMessageStart checks if a line starts with a commit type (with or without emoji)
 func (p *OpenRouterProvider) isCommitMessageStart(line string) bool {
-	// Check for emoji prefixes first
-	emojis := []string{"✨", "🐛", "📖", "💄", "🛠", "⚡️", "✅", "📦", "⚙️", "🚀", "🗑", "🤞", "🎉"}
-	for _, emoji := range emojis {
-		if strings.HasPrefix(line, emoji) {
-			return true
+	// Remove emoji if present to check for commit type
+	lineWithoutEmoji := line
+
+	// Check for emoji by looking for common commit emojis or any emoji-like character
+	runes := []rune(line)
+	if len(runes) > 0 && runes[0] > 127 {
+		// Skip emoji and any following spaces
+		i := 1
+		for i < len(runes) && (runes[i] == ' ' || runes[i] > 127) {
+			i++
+		}
+		if i < len(runes) {
+			lineWithoutEmoji = string(runes[i:])
 		}
 	}
 
-	// Check for standard commit types
-	types := []string{"feat:", "fix:", "docs:", "style:", "refactor:", "perf:", "test:", "chore:",
-		"feat(", "fix(", "docs(", "style(", "refactor(", "perf(", "test(", "chore("}
+	// Check for standard commit types (with or without scope)
+	types := []string{
+		"feat:", "fix:", "docs:", "style:", "refactor:", "perf:", "test:", "chore:",
+		"build:", "ci:", "revert:", "try:", "init:",
+		"feat(", "fix(", "docs(", "style(", "refactor(", "perf(", "test(", "chore(",
+		"build(", "ci(", "revert(", "try(", "init(",
+	}
+
 	for _, t := range types {
-		if strings.HasPrefix(line, t) {
+		if strings.HasPrefix(lineWithoutEmoji, t) {
 			return true
 		}
 	}
@@ -268,6 +343,15 @@ func (p *OpenRouterProvider) isCommitMessageStart(line string) bool {
 
 // parseJSONResponse parses JSON format responses
 func (p *OpenRouterProvider) parseJSONResponse(cleanText string) []string {
+	// First try to extract messages from plain text format (fallback for non-compliant models)
+	if strings.Contains(cleanText, "```") && !strings.Contains(cleanText, "{") {
+		// Model returned plain text in code blocks instead of JSON
+		messages := p.parseTextCodeBlock(cleanText)
+		if len(messages) > 0 {
+			return messages
+		}
+	}
+
 	// Try to extract JSON from markdown code blocks
 	if strings.Contains(cleanText, "```json") {
 		// Extract JSON from json code block
@@ -356,4 +440,47 @@ func (p *OpenRouterProvider) parseJSONResponse(cleanText string) []string {
 	}
 
 	return commitResponse.Messages
+}
+
+// parseTextCodeBlock extracts commit messages from plain text in code blocks
+// Fallback for models that don't follow JSON format instructions
+func (p *OpenRouterProvider) parseTextCodeBlock(text string) []string {
+	var messages []string
+
+	// Extract content from code block
+	start := strings.Index(text, "```")
+	if start == -1 {
+		return nil
+	}
+
+	start += 3 // Skip "```"
+	// Skip language identifier if present
+	for start < len(text) && text[start] != '\n' {
+		start++
+	}
+	if start < len(text) {
+		start++ // Skip newline
+	}
+
+	end := strings.Index(text[start:], "```")
+	if end == -1 {
+		return nil
+	}
+
+	content := strings.TrimSpace(text[start : start+end])
+	lines := strings.Split(content, "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Check if line looks like a commit message
+		if p.isCommitMessageStart(line) {
+			messages = append(messages, line)
+		}
+	}
+
+	return messages
 }

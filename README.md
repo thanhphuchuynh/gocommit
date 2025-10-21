@@ -2,6 +2,8 @@
 
 An AI-powered git commit message generator supporting multiple AI providers (Google Gemini and OpenRouter). This tool automatically generates meaningful commit messages based on your staged changes, following conventional commit formats, with comprehensive logging for prompt analysis and improvement.
 
+📚 **[View Full Documentation](https://thanhphuchuynh.github.io/gocommit/)**
+
 ## Features
 
 - Automatically analyzes git diff of staged changes
