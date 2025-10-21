@@ -28,211 +28,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Create docs index
+      - name: Install dependencies
         run: |
-          cat > docs/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>GoCommit Documentation</title>
-              <style>
-                  * {
-                      margin: 0;
-                      padding: 0;
-                      box-sizing: border-box;
-                  }
-                  body {
-                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                      line-height: 1.6;
-                      color: #333;
-                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                      min-height: 100vh;
-                      padding: 20px;
-                  }
-                  .container {
-                      max-width: 1200px;
-                      margin: 0 auto;
-                      background: white;
-                      border-radius: 10px;
-                      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-                      overflow: hidden;
-                  }
-                  header {
-                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                      color: white;
-                      padding: 40px;
-                      text-align: center;
-                  }
-                  h1 {
-                      font-size: 2.5em;
-                      margin-bottom: 10px;
-                  }
-                  .subtitle {
-                      font-size: 1.2em;
-                      opacity: 0.9;
-                  }
-                  .content {
-                      padding: 40px;
-                  }
-                  .docs-grid {
-                      display: grid;
-                      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                      gap: 20px;
-                      margin-top: 30px;
-                  }
-                  .doc-card {
-                      border: 2px solid #e0e0e0;
-                      border-radius: 8px;
-                      padding: 20px;
-                      transition: all 0.3s ease;
-                      text-decoration: none;
-                      color: inherit;
-                      display: block;
-                  }
-                  .doc-card:hover {
-                      border-color: #667eea;
-                      transform: translateY(-5px);
-                      box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2);
-                  }
-                  .doc-card h3 {
-                      color: #667eea;
-                      margin-bottom: 10px;
-                      font-size: 1.3em;
-                  }
-                  .doc-card p {
-                      color: #666;
-                      font-size: 0.95em;
-                  }
-                  .doc-icon {
-                      font-size: 2em;
-                      margin-bottom: 10px;
-                  }
-                  footer {
-                      text-align: center;
-                      padding: 20px;
-                      color: #666;
-                      border-top: 1px solid #e0e0e0;
-                  }
-                  .github-link {
-                      display: inline-block;
-                      margin-top: 20px;
-                      padding: 10px 20px;
-                      background: #667eea;
-                      color: white;
-                      text-decoration: none;
-                      border-radius: 5px;
-                      transition: background 0.3s ease;
-                  }
-                  .github-link:hover {
-                      background: #764ba2;
-                  }
-              </style>
-          </head>
-          <body>
-              <div class="container">
-                  <header>
-                      <h1>🚀 GoCommit Documentation</h1>
-                      <p class="subtitle">AI-Powered Git Commit Message Generator</p>
-                  </header>
-
-                  <div class="content">
-                      <h2>📚 Documentation</h2>
-                      <div class="docs-grid">
-                          <a href="README.html" class="doc-card">
-                              <div class="doc-icon">📖</div>
-                              <h3>README</h3>
-                              <p>Main documentation and getting started guide</p>
-                          </a>
-
-                          <a href="JSON_SCHEMA_IMPLEMENTATION.html" class="doc-card">
-                              <div class="doc-icon">🔧</div>
-                              <h3>JSON Schema Implementation</h3>
-                              <p>LangChain-style structured outputs for AI providers</p>
-                          </a>
-
-                          <a href="DELAYED_COMMIT_ARCHITECTURE.html" class="doc-card">
-                              <div class="doc-icon">⏰</div>
-                              <h3>Delayed Commit Architecture</h3>
-                              <p>Schedule commits for later with smart time suggestions</p>
-                          </a>
-
-                          <a href="REFACTORING_SUMMARY.html" class="doc-card">
-                              <div class="doc-icon">♻️</div>
-                              <h3>Refactoring Summary</h3>
-                              <p>Codebase restructuring and improvements</p>
-                          </a>
-
-                          <a href="README_GITHUB_ACTIONS.html" class="doc-card">
-                              <div class="doc-icon">⚙️</div>
-                              <h3>GitHub Actions Integration</h3>
-                              <p>Automate commit message generation in CI/CD</p>
-                          </a>
-
-                          <a href="README_LOGGING.html" class="doc-card">
-                              <div class="doc-icon">📝</div>
-                              <h3>Logging Guide</h3>
-                              <p>Debug and monitor your commit workflow</p>
-                          </a>
-
-                          <a href="INSTALL.html" class="doc-card">
-                              <div class="doc-icon">💾</div>
-                              <h3>Installation</h3>
-                              <p>Setup instructions and requirements</p>
-                          </a>
-
-                          <a href="FLOW.html" class="doc-card">
-                              <div class="doc-icon">🔄</div>
-                              <h3>Application Flow</h3>
-                              <p>Architecture and workflow diagrams</p>
-                          </a>
-                      </div>
-
-                      <center>
-                          <a href="https://github.com/thanhphuchuynh/gocommit" class="github-link" target="_blank">
-                              View on GitHub →
-                          </a>
-                      </center>
-                  </div>
-
-                  <footer>
-                      <p>Built with ❤️ by the GoCommit team</p>
-                  </footer>
-              </div>
-          </body>
-          </html>
-          EOF
-
-      - name: Convert Markdown to HTML
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pandoc
-
           cd docs
-          for file in *.md; do
-            if [ -f "$file" ]; then
-              filename="${file%.md}"
-              pandoc "$file" -f gfm -t html -s \
-                --metadata title="GoCommit - $filename" \
-                --css="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" \
-                -H <(echo '<style>body { max-width: 980px; margin: 40px auto; padding: 20px; } .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }</style>') \
-                --metadata pagetitle="GoCommit Documentation" \
-                -o "${filename}.html"
-            fi
-          done
+          npm install --prefer-offline --no-audit --progress=false || true
+
+      - name: Build VitePress site
+        run: |
+          cd docs
+          npx vitepress build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs
+          path: docs/.vitepress/dist
 
   deploy:
-    if: github.ref == 'refs/heads/main' 
-    # && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
