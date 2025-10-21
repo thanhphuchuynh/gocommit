@@ -11,6 +11,8 @@ import (
 	"github.com/thanhphuchuynh/ui"
 )
 
+// add comment to test feature
+
 // WorkflowConfig contains configuration for the commit workflow
 type WorkflowConfig struct {
 	Detailed bool

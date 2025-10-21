@@ -109,6 +109,7 @@ func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *Generate
 		// Don't set response_format as many models don't support it
 	}
 
+	fmt.Println("OpenRouter Prompt:\n", prompt)
 	// Prepare the request payload
 	requestBody := OpenRouterRequest{
 		Model:          p.model,
@@ -154,6 +155,9 @@ func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *Generate
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
+
+	// Log the response body
+	fmt.Println("OpenRouter Response:\n", string(body))
 
 	// Parse response
 	var openRouterResp OpenRouterResponse

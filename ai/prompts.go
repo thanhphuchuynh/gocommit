@@ -257,12 +257,10 @@ Adds null checks and default values for required user fields.
 Improves error messaging for better debugging experience.
 
 Generate exactly 3 different detailed commit messages with body text in this EXACT JSON format:
-
+example: 
 {
   "messages": [
     "✨ feat: enhance commit message generation with JSON output\n\nRefactors the commit message generation process to return responses in JSON format.\nThis change ensures a structured and parsable output, improving integration with other tools.\nUpdates prompt templates to explicitly request JSON formatted messages and removes parsing logic.",
-    "🐛 fix: correct JSON parsing in commit message generation\n\nAddresses an issue where the JSON output from the AI model was not correctly parsed.\nImproves JSON extraction from the response by handling potential code blocks.\nAdds more robust error handling and logging for debugging JSON parsing failures.",
-    "🚀 chore: update dependencies and improve error handling\n\nUpdates the go.mod and go.sum files to include the latest dependencies.\nImproves error handling throughout the application, providing more informative error messages.\nIncludes changes to gracefully handle API request failures."
   ]
 }
 
