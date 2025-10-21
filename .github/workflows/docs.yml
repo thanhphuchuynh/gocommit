@@ -36,12 +36,12 @@ jobs:
       - name: Install dependencies
         run: |
           cd docs
-          npm install --prefer-offline --no-audit --progress=false || true
+          npm ci --prefer-offline --no-audit --progress=false
 
       - name: Build VitePress site
         run: |
           cd docs
-          npx vitepress build
+          npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
