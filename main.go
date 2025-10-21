@@ -8,7 +8,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/nsf/termbox-go"
@@ -917,6 +919,514 @@ func getUserChoice(messages []string) (string, error) {
 	}
 }
 
+// ============================================================================
+// Delayed Commit Feature - Time/Date Selection Logic and Utilities
+// ============================================================================
+
+// isTimeInRestrictedRange checks if the given time falls within the restricted hour range
+// Returns true if time is restricted, false otherwise
+// Handles edge case where end < start (overnight range)
+func isTimeInRestrictedRange(now time.Time, startHour, endHour int) bool {
+	currentHour := now.Hour()
+
+	// Handle normal range (e.g., 9-17)
+	if startHour < endHour {
+		return currentHour >= startHour && currentHour < endHour
+	}
+
+	// Handle overnight range (e.g., 22-6)
+	if startHour > endHour {
+		return currentHour >= startHour || currentHour < endHour
+	}
+
+	// If startHour == endHour, no restriction
+	return false
+}
+
+// parseTimeString parses time strings in multiple formats
+// Supports: "HH:MM", "HH:MM AM/PM", "HHhMM"
+// Returns hour (0-23) and minute (0-59)
+func parseTimeString(timeStr string) (hour, minute int, err error) {
+	timeStr = strings.TrimSpace(timeStr)
+
+	// Try parsing "HH:MM AM/PM" format
+	if strings.Contains(strings.ToUpper(timeStr), "AM") || strings.Contains(strings.ToUpper(timeStr), "PM") {
+		isPM := strings.Contains(strings.ToUpper(timeStr), "PM")
+		// Remove AM/PM
+		timeStr = strings.TrimSuffix(strings.TrimSuffix(strings.ToUpper(timeStr), "PM"), "AM")
+		timeStr = strings.TrimSpace(timeStr)
+
+		// Parse HH:MM
+		parts := strings.Split(timeStr, ":")
+		if len(parts) != 2 {
+			return 0, 0, fmt.Errorf("invalid time format. Use HH:MM AM/PM (e.g., 6:30 PM)")
+		}
+
+		h, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid hour: %v", err)
+		}
+
+		m, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid minute: %v", err)
+		}
+
+		// Convert 12-hour to 24-hour format
+		if isPM && h != 12 {
+			h += 12
+		} else if !isPM && h == 12 {
+			h = 0
+		}
+
+		if h < 0 || h > 23 {
+			return 0, 0, fmt.Errorf("hour must be between 0 and 23")
+		}
+		if m < 0 || m > 59 {
+			return 0, 0, fmt.Errorf("minute must be between 0 and 59")
+		}
+
+		return h, m, nil
+	}
+
+	// Try parsing "HHhMM" format
+	if strings.Contains(timeStr, "h") || strings.Contains(timeStr, "H") {
+		parts := strings.FieldsFunc(timeStr, func(r rune) bool {
+			return r == 'h' || r == 'H'
+		})
+
+		if len(parts) != 2 {
+			return 0, 0, fmt.Errorf("invalid time format. Use HHhMM (e.g., 18h30)")
+		}
+
+		h, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid hour: %v", err)
+		}
+
+		m, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid minute: %v", err)
+		}
+
+		if h < 0 || h > 23 {
+			return 0, 0, fmt.Errorf("hour must be between 0 and 23")
+		}
+		if m < 0 || m > 59 {
+			return 0, 0, fmt.Errorf("minute must be between 0 and 59")
+		}
+
+		return h, m, nil
+	}
+
+	// Try parsing "HH:MM" format (24-hour)
+	if strings.Contains(timeStr, ":") {
+		parts := strings.Split(timeStr, ":")
+		if len(parts) != 2 {
+			return 0, 0, fmt.Errorf("invalid time format. Use HH:MM (e.g., 18:30)")
+		}
+
+		h, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid hour: %v", err)
+		}
+
+		m, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid minute: %v", err)
+		}
+
+		if h < 0 || h > 23 {
+			return 0, 0, fmt.Errorf("hour must be between 0 and 23")
+		}
+		if m < 0 || m > 59 {
+			return 0, 0, fmt.Errorf("minute must be between 0 and 59")
+		}
+
+		return h, m, nil
+	}
+
+	return 0, 0, fmt.Errorf("invalid time format. Use HH:MM, HH:MM AM/PM, or HHhMM")
+}
+
+// validateHour validates that hour is in range 0-23
+func validateHour(hour int) error {
+	if hour < 0 || hour > 23 {
+		return fmt.Errorf("hour must be between 0 and 23, got %d", hour)
+	}
+	return nil
+}
+
+// generateSuggestedTimes generates suggested times starting from the end of restricted hours
+// Uses the configured suggestion interval (e.g., 20 minutes)
+// Generates 6-8 suggestions, only for today (doesn't go past 23:59)
+func generateSuggestedTimes(restrictedEndHour, interval int) []string {
+	suggestions := []string{}
+
+	// Start from the end of restricted hours
+	currentHour := restrictedEndHour
+	currentMinute := 0
+
+	// If interval doesn't evenly divide 60, start with first interval after restriction end
+	if interval > 0 && interval < 60 {
+		// Calculate first suggestion time
+		currentMinute = interval
+		if currentMinute >= 60 {
+			currentHour++
+			currentMinute = 0
+		}
+	}
+
+	// Generate 6-8 suggestions
+	maxSuggestions := 8
+	for i := 0; i < maxSuggestions; i++ {
+		// Stop if we've gone past 23:59
+		if currentHour >= 24 {
+			break
+		}
+
+		// Format time as HH:MM
+		timeStr := fmt.Sprintf("%02d:%02d", currentHour, currentMinute)
+		suggestions = append(suggestions, timeStr)
+
+		// Increment by interval
+		currentMinute += interval
+		if currentMinute >= 60 {
+			currentHour += currentMinute / 60
+			currentMinute = currentMinute % 60
+		}
+	}
+
+	return suggestions
+}
+
+// getNextAvailableTime calculates the next available time after restrictions end
+// Returns the time for today, or current time if no time available today
+func getNextAvailableTime(now time.Time, restrictedEndHour int) time.Time {
+	// Create time for end of restriction today
+	endTime := time.Date(now.Year(), now.Month(), now.Day(),
+		restrictedEndHour, 0, 0, 0, now.Location())
+
+	// If end time is still in the future today, return it
+	if endTime.After(now) {
+		return endTime
+	}
+
+	// Otherwise, no available time today, return current time as fallback
+	return now
+}
+
+// showTimeSelectionUI displays interactive UI for time selection
+// Similar to getUserChoice() using termbox
+// Returns selected time string, custom flag (bool), and error
+func showTimeSelectionUI(suggestedTimes []string) (string, bool, error) {
+	err := termbox.Init()
+	if err != nil {
+		return "", false, err
+	}
+	defer termbox.Close()
+
+	selected := 0
+	customOption := len(suggestedTimes) // Index for "Enter custom time" option
+
+	// Draw the UI
+	drawTimeSelection := func() {
+		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+		// Get terminal width
+		width, _ := termbox.Size()
+		if width < 10 {
+			width = 80
+		}
+
+		// Draw title
+		title := "Commit during restricted hours detected"
+		for i, ch := range title {
+			termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
+		}
+
+		// Draw subtitle
+		subtitle := "Select commit time:"
+		for i, ch := range subtitle {
+			termbox.SetCell(i, 2, ch, termbox.ColorCyan, termbox.ColorDefault)
+		}
+
+		// Draw suggested times
+		for i, timeStr := range suggestedTimes {
+			fg := termbox.ColorDefault
+			bg := termbox.ColorDefault
+			if i == selected {
+				fg = termbox.ColorBlack
+				bg = termbox.ColorGreen
+			}
+
+			// Add bullet point
+			bullet := "•"
+			if i == selected {
+				bullet = "→"
+			}
+			termbox.SetCell(2, i+4, []rune(bullet)[0], fg, bg)
+
+			// Draw time
+			displayText := fmt.Sprintf("%s", timeStr)
+			for j, ch := range displayText {
+				termbox.SetCell(j+4, i+4, ch, fg, bg)
+			}
+		}
+
+		// Draw custom time option
+		fg := termbox.ColorDefault
+		bg := termbox.ColorDefault
+		if selected == customOption {
+			fg = termbox.ColorBlack
+			bg = termbox.ColorGreen
+		}
+
+		bullet := "•"
+		if selected == customOption {
+			bullet = "→"
+		}
+		termbox.SetCell(2, customOption+4, []rune(bullet)[0], fg, bg)
+
+		customMsg := "Enter custom time (c)"
+		for j, ch := range customMsg {
+			termbox.SetCell(j+4, customOption+4, ch, fg, bg)
+		}
+
+		// Draw instructions
+		instructions := "↑↓: Move  Enter: Select  c: Custom  Esc: Cancel"
+		for i, ch := range instructions {
+			termbox.SetCell(i, customOption+6, ch, termbox.ColorCyan, termbox.ColorDefault)
+		}
+
+		termbox.Flush()
+	}
+
+	drawTimeSelection()
+
+	for {
+		switch ev := termbox.PollEvent(); ev.Type {
+		case termbox.EventKey:
+			switch ev.Key {
+			case termbox.KeyArrowUp:
+				if selected > 0 {
+					selected--
+					drawTimeSelection()
+				}
+			case termbox.KeyArrowDown:
+				if selected < customOption {
+					selected++
+					drawTimeSelection()
+				}
+			case termbox.KeyEnter:
+				termbox.Close()
+				if selected == customOption {
+					// User wants to enter custom time
+					return "", true, nil
+				}
+				// Return selected time
+				return suggestedTimes[selected], false, nil
+			case termbox.KeyEsc:
+				return "", false, fmt.Errorf("time selection cancelled")
+			default:
+				// Handle 'c' or 'C' key for custom time
+				if ev.Ch == 'c' || ev.Ch == 'C' {
+					termbox.Close()
+					return "", true, nil
+				}
+			}
+		case termbox.EventError:
+			return "", false, ev.Err
+		}
+	}
+}
+
+// handleCustomTimeInput creates interactive prompt for custom time entry
+// Accepts formats: "HH:MM", "HH:MM AM/PM", "HHhMM"
+// Returns formatted time string or error
+func handleCustomTimeInput() (string, error) {
+	err := termbox.Init()
+	if err != nil {
+		return "", err
+	}
+	defer termbox.Close()
+
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+	// Draw title
+	title := "Enter custom commit time"
+	for i, ch := range title {
+		termbox.SetCell(i, 0, ch, termbox.ColorYellow, termbox.ColorDefault)
+	}
+
+	// Draw format instructions
+	instructions := []string{
+		"",
+		"Accepted formats:",
+		"  - HH:MM (24-hour): 18:45, 09:30",
+		"  - HHhMM: 18h45, 9h30",
+		"  - HH:MM AM/PM: 6:45 PM, 9:30 AM",
+		"",
+		"Time: ",
+	}
+
+	for i, line := range instructions {
+		for j, ch := range line {
+			termbox.SetCell(j, i+2, ch, termbox.ColorCyan, termbox.ColorDefault)
+		}
+	}
+
+	// Draw bottom instructions
+	bottomInst := "Enter: Confirm  Esc: Cancel"
+	for i, ch := range bottomInst {
+		termbox.SetCell(i, len(instructions)+4, ch, termbox.ColorCyan, termbox.ColorDefault)
+	}
+
+	// Input buffer
+	input := []rune{}
+	cursorPos := 0
+
+	redraw := func(errorMsg string) {
+		// Redraw prompt area
+		for i := 0; i < 80; i++ {
+			termbox.SetCell(i, len(instructions)+1, ' ', termbox.ColorDefault, termbox.ColorDefault)
+		}
+
+		prompt := "Time: "
+		for j, ch := range prompt {
+			termbox.SetCell(j, len(instructions)+1, ch, termbox.ColorCyan, termbox.ColorDefault)
+		}
+
+		// Draw input
+		for j, ch := range input {
+			termbox.SetCell(j+len(prompt), len(instructions)+1, ch, termbox.ColorDefault, termbox.ColorDefault)
+		}
+
+		// Draw error if any
+		if errorMsg != "" {
+			for i := 0; i < 80; i++ {
+				termbox.SetCell(i, len(instructions)+3, ' ', termbox.ColorDefault, termbox.ColorDefault)
+			}
+			for j, ch := range errorMsg {
+				termbox.SetCell(j, len(instructions)+3, ch, termbox.ColorRed, termbox.ColorDefault)
+			}
+		}
+
+		termbox.SetCursor(len(prompt)+cursorPos, len(instructions)+1)
+		termbox.Flush()
+	}
+
+	redraw("")
+
+	for {
+		switch ev := termbox.PollEvent(); ev.Type {
+		case termbox.EventKey:
+			switch ev.Key {
+			case termbox.KeyEnter:
+				// Validate and return input
+				timeStr := string(input)
+				if timeStr == "" {
+					redraw("Error: Time cannot be empty")
+					continue
+				}
+
+				hour, minute, err := parseTimeString(timeStr)
+				if err != nil {
+					redraw(fmt.Sprintf("Error: %v", err))
+					continue
+				}
+
+				// Return formatted time
+				return fmt.Sprintf("%02d:%02d", hour, minute), nil
+
+			case termbox.KeyEsc:
+				return "", fmt.Errorf("custom time input cancelled")
+
+			case termbox.KeyBackspace, termbox.KeyBackspace2:
+				if cursorPos > 0 {
+					input = append(input[:cursorPos-1], input[cursorPos:]...)
+					cursorPos--
+					redraw("")
+				}
+
+			case termbox.KeyDelete:
+				if cursorPos < len(input) {
+					input = append(input[:cursorPos], input[cursorPos+1:]...)
+					redraw("")
+				}
+
+			case termbox.KeyArrowLeft:
+				if cursorPos > 0 {
+					cursorPos--
+					redraw("")
+				}
+
+			case termbox.KeyArrowRight:
+				if cursorPos < len(input) {
+					cursorPos++
+					redraw("")
+				}
+
+			case termbox.KeySpace:
+				input = append(input[:cursorPos], append([]rune{' '}, input[cursorPos:]...)...)
+				cursorPos++
+				redraw("")
+
+			default:
+				if ev.Ch != 0 {
+					input = append(input[:cursorPos], append([]rune{ev.Ch}, input[cursorPos:]...)...)
+					cursorPos++
+					redraw("")
+				}
+			}
+
+		case termbox.EventError:
+			return "", ev.Err
+		}
+	}
+}
+
+// executeDelayedCommit executes git commit with custom timestamp
+// Uses git commit --date flag for both author and committer date
+func executeDelayedCommit(commitMsg, timeStr string) error {
+	// Parse the time string
+	hour, minute, err := parseTimeString(timeStr)
+	if err != nil {
+		return fmt.Errorf("invalid time string: %v", err)
+	}
+
+	// Construct timestamp for today
+	now := time.Now()
+	timestamp := time.Date(now.Year(), now.Month(), now.Day(),
+		hour, minute, 0, 0, now.Location())
+
+	// Format timestamp for git (ISO 8601)
+	dateStr := timestamp.Format(time.RFC3339)
+
+	// Create command with --date flag
+	cmd := exec.Command("git", "commit", "-m", commitMsg, "--date", dateStr)
+
+	// Also set committer date via environment variable
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("GIT_COMMITTER_DATE=%s", dateStr))
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Execute commit
+	if err := cmd.Run(); err != nil {
+		// Fallback: try without custom date
+		log.Printf("Warning: Failed to commit with custom date, using current time: %v", err)
+		fallbackCmd := exec.Command("git", "commit", "-m", commitMsg)
+		fallbackCmd.Stdout = os.Stdout
+		fallbackCmd.Stderr = os.Stderr
+		return fallbackCmd.Run()
+	}
+
+	fmt.Printf("Commit timestamp: %s\n", timestamp.Format("2006-01-02 15:04:05 -0700"))
+	return nil
+}
+
 func isValidAPIKey(apiKey string) bool {
 	// Google AI API keys typically start with "AIza" and are 39 characters long
 	return len(apiKey) == 39 && strings.HasPrefix(apiKey, "AIza")
@@ -928,6 +1438,9 @@ func main() {
 	enableLoggingFlag := flag.Bool("enable-logging", false, "Enable request logging to file")
 	disableLoggingFlag := flag.Bool("disable-logging", false, "Disable request logging to file")
 	iconFlag := flag.Bool("icon", false, "Use emoji icons in commit messages")
+	configDelayedFlag := flag.Bool("config-delayed", false, "Configure delayed commit settings")
+	enableDelayedFlag := flag.Bool("enable-delayed", false, "Enable delayed commit feature")
+	disableDelayedFlag := flag.Bool("disable-delayed", false, "Disable delayed commit feature")
 	flag.Parse()
 
 	// Handle logging configuration flags
@@ -944,6 +1457,67 @@ func main() {
 			log.Fatalf("Failed to disable logging: %v", err)
 		}
 		fmt.Println("Logging disabled successfully!")
+		return
+	}
+
+	// Handle delayed commit configuration flags
+	if *configDelayedFlag {
+		fmt.Println("Configure Delayed Commit Settings")
+		fmt.Println("===================================")
+		fmt.Println()
+
+		// Get restricted start hour
+		fmt.Print("Enter restricted start hour (0-23, e.g., 9 for 9 AM): ")
+		var startHourStr string
+		fmt.Scanln(&startHourStr)
+		startHour, err := strconv.Atoi(strings.TrimSpace(startHourStr))
+		if err != nil || startHour < 0 || startHour > 23 {
+			log.Fatal("Error: Invalid start hour. Must be between 0 and 23.")
+		}
+
+		// Get restricted end hour
+		fmt.Print("Enter restricted end hour (0-23, e.g., 17 for 5 PM): ")
+		var endHourStr string
+		fmt.Scanln(&endHourStr)
+		endHour, err := strconv.Atoi(strings.TrimSpace(endHourStr))
+		if err != nil || endHour < 0 || endHour > 23 {
+			log.Fatal("Error: Invalid end hour. Must be between 0 and 23.")
+		}
+
+		// Get suggestion interval
+		fmt.Print("Enter suggestion interval in minutes (e.g., 20, 30, 60): ")
+		var intervalStr string
+		fmt.Scanln(&intervalStr)
+		interval, err := strconv.Atoi(strings.TrimSpace(intervalStr))
+		if err != nil || interval <= 0 || interval > 1440 {
+			log.Fatal("Error: Invalid interval. Must be between 1 and 1440 minutes.")
+		}
+
+		// Save configuration
+		if err := config.SetDelayedCommitConfig(startHour, endHour, interval); err != nil {
+			log.Fatalf("Failed to save delayed commit configuration: %v", err)
+		}
+
+		fmt.Println()
+		fmt.Println("Delayed commit settings configured successfully!")
+		fmt.Printf("Restricted hours: %02d:00 - %02d:00\n", startHour, endHour)
+		fmt.Printf("Suggestion interval: %d minutes\n", interval)
+		return
+	}
+
+	if *enableDelayedFlag {
+		if err := config.SetDelayedCommitEnabled(true); err != nil {
+			log.Fatalf("Failed to enable delayed commit: %v", err)
+		}
+		fmt.Println("Delayed commit feature enabled successfully!")
+		return
+	}
+
+	if *disableDelayedFlag {
+		if err := config.SetDelayedCommitEnabled(false); err != nil {
+			log.Fatalf("Failed to disable delayed commit: %v", err)
+		}
+		fmt.Println("Delayed commit feature disabled successfully!")
 		return
 	}
 
@@ -1002,16 +1576,72 @@ func main() {
 	// Log successful request
 	logger.LogSuccess(gitDiff, lastCommitMsg, prompt, aiResponse, messages, commitMsg)
 
-	// Create git commit with the chosen message
-	cmd := exec.Command("git", "commit", "-m", commitMsg)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Check if delayed commit feature is enabled
+	delayedCommitUsed := false
+	enabled, err := config.IsDelayedCommitEnabled()
+	if err == nil && enabled {
+		now := time.Now()
 
-	if err := cmd.Run(); err != nil {
-		log.Fatal("Failed to create commit:", err)
+		// Get delayed commit configuration
+		delayedConfig, err := config.GetDelayedCommitConfig()
+		if err == nil {
+			// Check if current time is in restricted range
+			if isTimeInRestrictedRange(now, delayedConfig.RestrictedStartHour, delayedConfig.RestrictedEndHour) {
+				fmt.Println()
+				fmt.Println("⏰ Commit during restricted hours detected!")
+				fmt.Printf("Restricted hours: %02d:00 - %02d:00\n", delayedConfig.RestrictedStartHour, delayedConfig.RestrictedEndHour)
+				fmt.Println()
+
+				// Generate suggested times
+				suggestedTimes := generateSuggestedTimes(delayedConfig.RestrictedEndHour, delayedConfig.SuggestionInterval)
+
+				// Show time selection UI
+				selectedTime, isCustom, err := showTimeSelectionUI(suggestedTimes)
+				if err != nil {
+					if err.Error() == "time selection cancelled" {
+						fmt.Println("Commit cancelled.")
+						return
+					}
+					log.Fatalf("Error in time selection: %v", err)
+				}
+
+				// Handle custom time input if requested
+				if isCustom {
+					selectedTime, err = handleCustomTimeInput()
+					if err != nil {
+						if err.Error() == "custom time input cancelled" {
+							fmt.Println("Commit cancelled.")
+							return
+						}
+						log.Fatalf("Error in custom time input: %v", err)
+					}
+				}
+
+				// Execute delayed commit
+				fmt.Printf("\nScheduling commit for: %s\n", selectedTime)
+				if err := executeDelayedCommit(commitMsg, selectedTime); err != nil {
+					log.Fatalf("Failed to create delayed commit: %v", err)
+				}
+
+				delayedCommitUsed = true
+				fmt.Printf("✓ Successfully created commit with message: %s\n", commitMsg)
+			}
+		}
 	}
 
-	fmt.Printf("Successfully created commit with message: %s\n", commitMsg)
+	// Execute normal commit if delayed commit was not used
+	if !delayedCommitUsed {
+		// Create git commit with the chosen message
+		cmd := exec.Command("git", "commit", "-m", commitMsg)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			log.Fatal("Failed to create commit:", err)
+		}
+
+		fmt.Printf("Successfully created commit with message: %s\n", commitMsg)
+	}
 
 	// Show log file location
 	// logPath, _ := logger.GetLogPath()
