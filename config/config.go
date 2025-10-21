@@ -1,10 +1,13 @@
 package config
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -20,6 +23,8 @@ type DelayedCommitConfig struct {
 
 type Config struct {
 	APIKey         string              `json:"api_key"`
+	Provider       string              `json:"provider"` // "gemini" or "openrouter", default: "gemini"
+	Model          string              `json:"model"`    // Model name for provider (e.g., "anthropic/claude-3.5-sonnet" for OpenRouter)
 	LoggingEnabled bool                `json:"logging_enabled"`
 	IconMode       bool                `json:"icon_mode"`
 	DelayedCommit  DelayedCommitConfig `json:"delayed_commit"`
@@ -113,6 +118,49 @@ func SetAPIKey(apiKey string) error {
 	}
 
 	config.APIKey = apiKey
+	return SaveConfig(config)
+}
+
+func GetProvider() (string, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return "", err
+	}
+
+	// Default to "gemini" if not set
+	if config.Provider == "" {
+		return "gemini", nil
+	}
+
+	return config.Provider, nil
+}
+
+func SetProvider(provider string) error {
+	config, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	config.Provider = provider
+	return SaveConfig(config)
+}
+
+func GetModel() (string, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return "", err
+	}
+
+	return config.Model, nil
+}
+
+func SetModel(model string) error {
+	config, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	config.Model = model
 	return SaveConfig(config)
 }
 
@@ -223,4 +271,156 @@ func GetSuggestionInterval() (int, error) {
 	}
 
 	return config.DelayedCommit.SuggestionInterval, nil
+}
+
+// ValidateGeminiAPIKey validates the Gemini API key format
+func ValidateGeminiAPIKey(apiKey string) error {
+	// Google AI API keys typically start with "AIza" and are 39 characters long
+	if len(apiKey) != 39 || !strings.HasPrefix(apiKey, "AIza") {
+		return fmt.Errorf("invalid API key format. Google AI API keys should start with 'AIza' and be 39 characters long")
+	}
+	return nil
+}
+
+// ValidateOpenRouterAPIKey validates the OpenRouter API key format
+func ValidateOpenRouterAPIKey(apiKey string) error {
+	// OpenRouter API keys start with "sk-or-" or "sk-"
+	if !strings.HasPrefix(apiKey, "sk-or-") && !strings.HasPrefix(apiKey, "sk-") {
+		return fmt.Errorf("invalid API key format. OpenRouter API keys should start with 'sk-or-' or 'sk-'")
+	}
+	return nil
+}
+
+// HandleConfigureAPIKey handles the --config flag for configuring AI provider and API key
+func HandleConfigureAPIKey() error {
+	fmt.Println("\n=== GoCommit Configuration ===\n")
+
+	// Step 1: Choose provider
+	fmt.Println("Select AI Provider:")
+	fmt.Println("  1. Gemini (Google)")
+	fmt.Println("  2. OpenRouter (Claude, GPT-4, Llama, etc.)")
+	fmt.Print("\nEnter choice (1 or 2) [1]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	choice, _ := reader.ReadString('\n')
+	choice = strings.TrimSpace(choice)
+
+	// Default to Gemini if no choice or invalid choice
+	provider := "gemini"
+	if choice == "2" {
+		provider = "openrouter"
+	}
+
+	// Step 2: Enter API key
+	providerName := "Gemini"
+	if provider == "openrouter" {
+		providerName = "OpenRouter"
+	}
+	fmt.Printf("\nEnter %s API key: ", providerName)
+	apiKey, _ := reader.ReadString('\n')
+	apiKey = strings.TrimSpace(apiKey)
+
+	if apiKey == "" {
+		return fmt.Errorf("API key cannot be empty")
+	}
+
+	// Validate API key based on provider
+	if provider == "gemini" {
+		if err := ValidateGeminiAPIKey(apiKey); err != nil {
+			return err
+		}
+	} else if provider == "openrouter" {
+		if err := ValidateOpenRouterAPIKey(apiKey); err != nil {
+			return err
+		}
+	}
+
+	// Step 3: Configure provider-specific options
+	if provider == "openrouter" {
+		fmt.Println("\nConfigure OpenRouter model (optional):")
+		fmt.Println("  Popular models:")
+		fmt.Println("    - anthropic/claude-3.5-sonnet (default)")
+		fmt.Println("    - anthropic/claude-3-opus")
+		fmt.Println("    - openai/gpt-4-turbo")
+		fmt.Println("    - openai/gpt-4")
+		fmt.Println("    - meta-llama/llama-3.1-70b-instruct")
+		fmt.Print("\nEnter model name (or press Enter for default): ")
+
+		model, _ := reader.ReadString('\n')
+		model = strings.TrimSpace(model)
+
+		if model != "" {
+			if err := SetModel(model); err != nil {
+				return fmt.Errorf("error setting model: %w", err)
+			}
+		}
+	}
+
+	// Save configuration
+	if err := SetProvider(provider); err != nil {
+		return fmt.Errorf("error setting provider: %w", err)
+	}
+
+	if err := SetAPIKey(apiKey); err != nil {
+		return fmt.Errorf("error saving API key: %w", err)
+	}
+
+	fmt.Printf("\n✓ Configuration saved successfully!\n")
+	fmt.Printf("  Provider: %s\n", provider)
+	if provider == "openrouter" {
+		model, _ := GetModel()
+		if model != "" {
+			fmt.Printf("  Model: %s\n", model)
+		} else {
+			fmt.Printf("  Model: anthropic/claude-3.5-sonnet (default)\n")
+		}
+	}
+	fmt.Println("\nYou can now use 'gocommit' to generate commit messages.")
+
+	return nil
+}
+
+// HandleConfigureDelayedCommit handles the --config-delayed flag
+func HandleConfigureDelayedCommit() error {
+	fmt.Println("Configure Delayed Commit Settings")
+	fmt.Println("===================================")
+	fmt.Println()
+
+	// Get restricted start hour
+	fmt.Print("Enter restricted start hour (0-23, e.g., 9 for 9 AM): ")
+	var startHourStr string
+	fmt.Scanln(&startHourStr)
+	startHour, err := strconv.Atoi(strings.TrimSpace(startHourStr))
+	if err != nil || startHour < 0 || startHour > 23 {
+		return fmt.Errorf("invalid start hour. Must be between 0 and 23")
+	}
+
+	// Get restricted end hour
+	fmt.Print("Enter restricted end hour (0-23, e.g., 17 for 5 PM): ")
+	var endHourStr string
+	fmt.Scanln(&endHourStr)
+	endHour, err := strconv.Atoi(strings.TrimSpace(endHourStr))
+	if err != nil || endHour < 0 || endHour > 23 {
+		return fmt.Errorf("invalid end hour. Must be between 0 and 23")
+	}
+
+	// Get suggestion interval
+	fmt.Print("Enter suggestion interval in minutes (e.g., 20, 30, 60): ")
+	var intervalStr string
+	fmt.Scanln(&intervalStr)
+	interval, err := strconv.Atoi(strings.TrimSpace(intervalStr))
+	if err != nil || interval <= 0 || interval > 1440 {
+		return fmt.Errorf("invalid interval. Must be between 1 and 1440 minutes")
+	}
+
+	// Save configuration
+	if err := SetDelayedCommitConfig(startHour, endHour, interval); err != nil {
+		return fmt.Errorf("failed to save delayed commit configuration: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Delayed commit settings configured successfully!")
+	fmt.Printf("Restricted hours: %02d:00 - %02d:00\n", startHour, endHour)
+	fmt.Printf("Suggestion interval: %d minutes\n", interval)
+	return nil
 }

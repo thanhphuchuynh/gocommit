@@ -1,11 +1,12 @@
 # GoCommit
 
-An AI-powered git commit message generator using Google's Gemini API. This tool automatically generates meaningful commit messages based on your staged changes, following conventional commit formats, with comprehensive logging for prompt analysis and improvement.
+An AI-powered git commit message generator supporting multiple AI providers (Google Gemini and OpenRouter). This tool automatically generates meaningful commit messages based on your staged changes, following conventional commit formats, with comprehensive logging for prompt analysis and improvement.
 
 ## Features
 
 - Automatically analyzes git diff of staged changes
-- Generates meaningful commit messages using Gemini AI
+- Generates meaningful commit messages using AI (Gemini or OpenRouter)
+- Supports multiple AI models through OpenRouter (Claude, GPT-4, Llama, etc.)
 - Follows conventional commit format (type(scope): description)
 - Ensures commit message quality and consistency
 - Secure API key configuration and validation
@@ -19,7 +20,9 @@ An AI-powered git commit message generator using Google's Gemini API. This tool 
 
 - Go 1.21 or higher
 - Git (optional, for manual installation)
-- Gemini API key (starts with "AIza" and is 39 characters long)
+- API key from one of the supported providers:
+  - **Gemini**: API key starting with "AIza" (39 characters)
+  - **OpenRouter**: API key starting with "sk-or-" or "sk-"
 
 ## Installation
 
@@ -74,18 +77,95 @@ Or download the latest binary from the [releases page](https://github.com/thanhp
 
 ## Configuration
 
-Configure your Gemini API key using the built-in configuration tool:
+### Interactive Setup
+
+Configure your AI provider and API key using the built-in interactive configuration tool:
 
 ```bash
 gocommit --config
 ```
 
-The tool will:
-1. Prompt you to enter your API key
-2. Validate the key format (must start with "AIza" and be 39 characters long)
-3. Securely save the key to your home directory
+The tool will guide you through:
 
-To update your API key later, simply run the configuration command again.
+1. **Select AI Provider**:
+   - Choose between Gemini (Google) or OpenRouter (Claude, GPT-4, Llama, etc.)
+
+2. **Enter API Key**:
+   - For Gemini: Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - For OpenRouter: Get your API key from [openrouter.ai](https://openrouter.ai/)
+
+3. **Configure Model** (OpenRouter only):
+   - Optionally select a specific model or use the default (Claude 3.5 Sonnet)
+
+**Example Configuration Flow:**
+
+```bash
+$ gocommit --config
+
+=== GoCommit Configuration ===
+
+Select AI Provider:
+  1. Gemini (Google)
+  2. OpenRouter (Claude, GPT-4, Llama, etc.)
+
+Enter choice (1 or 2) [1]: 2
+
+Enter OpenRouter API key: sk-or-v1-xxx...
+
+Configure OpenRouter model (optional):
+  Popular models:
+    - anthropic/claude-3.5-sonnet (default)
+    - anthropic/claude-3-opus
+    - openai/gpt-4-turbo
+    - openai/gpt-4
+    - meta-llama/llama-3.1-70b-instruct
+
+Enter model name (or press Enter for default): openai/gpt-4-turbo
+
+✓ Configuration saved successfully!
+  Provider: openrouter
+  Model: openai/gpt-4-turbo
+
+You can now use 'gocommit' to generate commit messages.
+```
+
+### Available OpenRouter Models
+
+When using OpenRouter, you have access to various AI models:
+
+- **Anthropic Claude**:
+  - `anthropic/claude-3.5-sonnet` (default, recommended)
+  - `anthropic/claude-3-opus`
+  - `anthropic/claude-3-sonnet`
+
+- **OpenAI**:
+  - `openai/gpt-4-turbo`
+  - `openai/gpt-4`
+  - `openai/gpt-3.5-turbo`
+
+- **Google**:
+  - `google/gemini-pro-1.5`
+  - `google/gemini-pro`
+
+- **Meta**:
+  - `meta-llama/llama-3.1-70b-instruct`
+  - `meta-llama/llama-3.1-405b-instruct`
+
+- **And many more** - see [OpenRouter models](https://openrouter.ai/models) for the complete list
+
+### Changing Configuration
+
+To switch providers or update your API key, simply run the configuration command again:
+
+```bash
+gocommit --config
+```
+
+You can also change the model for OpenRouter without reconfiguring everything:
+
+```bash
+gocommit --set-model "anthropic/claude-3-opus"
+```
 
 ## Usage
 
