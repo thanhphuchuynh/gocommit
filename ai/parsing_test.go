@@ -215,8 +215,8 @@ func TestJSONSchemaResponse(t *testing.T) {
 			useIcons: true,
 		},
 		{
-			name: "JSON with markdown code block",
-			input: "```json\n{\n  \"messages\": [\n    \"feat: add feature\",\n    \"fix: resolve bug\",\n    \"docs: update readme\"\n  ]\n}\n```",
+			name:     "JSON with markdown code block",
+			input:    "```json\n{\n  \"messages\": [\n    \"feat: add feature\",\n    \"fix: resolve bug\",\n    \"docs: update readme\"\n  ]\n}\n```",
 			detailed: false,
 			useIcons: false,
 		},
@@ -226,8 +226,8 @@ func TestJSONSchemaResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test both providers
 			providers := []struct {
-				name     string
-				parser   func(string, bool, bool) ([]string, error)
+				name   string
+				parser func(string, bool, bool) ([]string, error)
 			}{
 				{"Gemini", (&GeminiProvider{}).parseResponse},
 				{"OpenRouter", (&OpenRouterProvider{}).parseResponse},
