@@ -38,11 +38,48 @@ This roadmap outlines the evolution of **GoCommit**, from a simple AI-powered co
   - Preview diff + generated message side-by-side.  
 - [ ] Optional “auto-commit” flag for fast workflows.
 
-🧠 _“Before you commit, consider if your change has a place in the story.”_
+🧠 _"Before you commit, consider if your change has a place in the story."_
 
 ---
 
-## 🌈 Phase 2 — Personality & Delight
+## 🔍 Phase 2 — Quality & Model Management
+### 🎯 Goal: Handle diverse AI models and ensure quality
+- [ ] **Quality Validation System**
+  - Automatic quality scoring (1-10) for generated messages.
+  - Detect generic messages: "update files", "fix stuff" → reject & retry.
+  - Auto-retry with enhanced prompts if quality is low.
+  - Validation rules: scope required, minimum description length, etc.
+- [ ] **Multi-Tier Model Support**
+  - **High-end models**: Claude Sonnet, GPT-4 (⭐⭐⭐⭐⭐ quality, $$ cost)
+  - **Mid-tier models**: GPT-4o-mini, Claude Haiku (⭐⭐⭐⭐ quality, $ cost)
+  - **Local models**: Ollama, CodeLlama (⭐⭐⭐ quality, free)
+  - Configure per project or per commit type.
+- [ ] **Adaptive Model Selection**
+  - Use cheap models for simple changes (docs, README).
+  - Use expensive models for complex code changes.
+  - Triggers: file count, line changes, file types, presence of tests.
+  - Show cost estimation before committing.
+- [ ] **Weak Model Enhancement**
+  - **Strict templates**: Force format for weaker models.
+  - **Progressive generation**: Generate in steps (type → scope → summary → body).
+  - **Template wizard**: Interactive fallback when AI fails.
+  - **Learned style guide**: Analyze repo history to learn commit patterns.
+- [ ] **Hybrid Strategy**
+  - Try local model first (free, fast).
+  - Auto-upgrade to cloud model if confidence < 60%.
+  - User can manually trigger upgrade.
+  - Show confidence score and quality indicators.
+- [ ] **Human-in-the-Loop**
+  - Always show preview for weak models.
+  - Highlight potential issues (missing scope, too generic).
+  - Suggest improvements inline.
+  - Never auto-commit with low confidence scores.
+
+🎯 _"Quality is not an accident; it is always the result of intelligent effort." — John Ruskin_
+
+---
+
+## 🌈 Phase 3 — Personality & Delight
 ### 🎯 Goal: Make commits fun and human
 - [ ] **Tone Modes**
   - `--mode=zen`, `--mode=funny`, `--mode=pirate`, `--mode=minimal`.  
@@ -51,11 +88,11 @@ This roadmap outlines the evolution of **GoCommit**, from a simple AI-powered co
   - Playful verbs or ASCII art feedback.  
   - Optional “fortune mode”: prints a haiku or quote after commit.  
 
-🧘 _“Simplicity is the ultimate sophistication.” — Leonardo da Vinci_
+🧘 _"Simplicity is the ultimate sophistication." — Leonardo da Vinci_
 
 ---
 
-## 📊 Phase 3 — Reflection & Feedback
+## 📊 Phase 4 — Reflection & Feedback
 ### 🎯 Goal: Help users see their commit patterns
 - [ ] **Analytics Dashboard**
   - `gocommit stats` → shows commit counts, types, length, etc.  
@@ -66,11 +103,11 @@ This roadmap outlines the evolution of **GoCommit**, from a simple AI-powered co
     - 🔥 “Fix Fiend” (50 fixes)  
   - Optional: ASCII fireworks for milestones.
 
-💬 _“Measure what you commit — not for vanity, but for growth.”_
+💬 _"Measure what you commit — not for vanity, but for growth."_
 
 ---
 
-## ☯ Phase 4 — Philosophy Integration
+## ☯ Phase 5 — Philosophy Integration
 ### 🎯 Goal: Embed mindfulness into the developer’s flow
 - [ ] **Reflection Prompt**
   - Before commit: short pause — “Is this change meaningful?”  
@@ -80,11 +117,11 @@ This roadmap outlines the evolution of **GoCommit**, from a simple AI-powered co
 - [ ] **Ethical Reminder**
   - Encourage clarity, honesty, and purpose in messages.
 
-🪶 _“Code fades, intent remains.”_
+🪶 _"Code fades, intent remains."_
 
 ---
 
-## 📖 Phase 5 — Documentation & Legacy
+## 📖 Phase 6 — Documentation & Legacy
 ### 🎯 Goal: Tell the story behind the tool
 - [ ] **README Update**
   - Add **“Why We Wrote This”** section — the philosophy behind GoCommit.  
@@ -101,9 +138,28 @@ This roadmap outlines the evolution of **GoCommit**, from a simple AI-powered co
 |-----------|----------|------|--------|
 | 1 | Custom templates/config | Personalization | 🏁 In progress |
 | 2 | Interactive mode | Core UX | ⏳ Planned |
-| 3 | Tone modes (funny/zen/pirate) | Delight | 🔜 Next |
-| 4 | Analytics & gamification | Reflection | 🧩 Later |
-| 5 | Philosophical layer | Spirit | 🌙 Optional |
+| 3 | Quality & model management | Reliability | 🔥 Critical |
+| 4 | Tone modes (funny/zen/pirate) | Delight | 🔜 Next |
+| 5 | Analytics & gamification | Reflection | 🧩 Later |
+| 6 | Philosophical layer | Spirit | 🌙 Optional |
+
+### 🎯 Implementation Focus Areas
+
+**Phase 0-2 (MVP - Core Functionality)**
+- Config system for customization
+- Interactive commit workflow
+- Quality validation & multi-model support
+- Essential for production use
+
+**Phase 3-4 (Enhanced Experience)**
+- Personality modes & delight
+- Analytics & reflection
+- User engagement features
+
+**Phase 5-6 (Polish & Community)**
+- Philosophical integration
+- Documentation & outreach
+- Long-term vision
 
 ---
 

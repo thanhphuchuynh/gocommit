@@ -2,72 +2,6 @@
 
 > Practical examples for all features described in the roadmap
 
----
-
-## 📋 TODO: Examples to Add
-
-### High Priority
-- [ ] **Error Handling Examples**
-  - What happens when AI API fails
-  - Graceful fallback to manual input
-  - Network timeout scenarios
-
-- [ ] **Edge Cases**
-  - Empty commit (no staged files)
-  - Very large diffs (100+ files)
-  - Merge commit handling
-  - Amend commit with --amend flag
-
-- [ ] **Real-World Workflows**
-  - Monorepo multi-package commits
-  - Feature branch workflow
-  - Hotfix workflow example
-  - Squash and rebase scenarios
-
-### Medium Priority
-- [ ] **Configuration Examples**
-  - Team-wide config sharing
-  - Per-project scope rules
-  - Custom emoji mappings
-  - Conventional commit enforcement
-
-- [ ] **Integration Examples**
-  - Husky integration
-  - Commitlint compatibility
-  - GitHub Actions validation
-  - GitLab CI pipeline
-
-- [ ] **Multi-Language Commits**
-  - Japanese commit messages
-  - German commit messages
-  - Spanish commit messages
-  - RTL language support (Arabic, Hebrew)
-
-### Low Priority
-- [ ] **Performance Examples**
-  - Benchmarks for large repos
-  - Cache optimization
-  - Token usage optimization
-
-- [ ] **Security Examples**
-  - API key management
-  - Secrets detection in diffs
-  - .env file handling
-
-- [ ] **Plugin System** (future)
-  - Custom tone plugins
-  - Custom template plugins
-  - Webhook integrations
-
-### Documentation Improvements
-- [ ] Add video/GIF demos for interactive mode
-- [ ] Create visual flowcharts for decision trees
-- [ ] Add comparison table with other tools
-- [ ] Include troubleshooting section
-- [ ] Add FAQ section
-
----
-
 ## ⚙️ Phase 0 — Custom Templates & Config
 
 ### Example 1: Basic Config File (`.gocommitrc`)
@@ -692,6 +626,473 @@ jobs:
         run: curl -sSfL https://gocommit.sh/install | sh
       - name: Validate commits
         run: gocommit validate --strict
+```
+
+---
+
+## 🔍 Handling Weak Models & Improving Quality
+
+### Example 21: Model Quality Tiers
+
+**Understanding different model capabilities:**
+
+```yaml
+# .gocommitrc - High Quality (Expensive)
+ai:
+  provider: "anthropic"
+  model: "claude-sonnet-4"
+  temperature: 0.7
+
+# Output quality: ⭐⭐⭐⭐⭐
+# - Deep understanding of code context
+# - Meaningful commit messages
+# - Proper conventional commit format
+# Cost: $$ - Higher API costs
+```
+
+```yaml
+# .gocommitrc - Medium Quality (Balanced)
+ai:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.5
+
+# Output quality: ⭐⭐⭐⭐
+# - Good understanding of changes
+# - Consistent formatting
+# - May miss subtle context
+# Cost: $ - Moderate API costs
+```
+
+```yaml
+# .gocommitrc - Low Quality (Cheap/Local)
+ai:
+  provider: "local"
+  endpoint: "http://localhost:11434"
+  model: "llama3:8b"
+  temperature: 0.3
+
+# Output quality: ⭐⭐⭐
+# - Basic commit message generation
+# - May need manual editing
+# - Generic descriptions
+# Cost: Free - Run locally
+```
+
+### Example 22: Quality Validation & Auto-Retry
+
+**Implement quality checks before accepting commits:**
+
+```bash
+$ gocommit --validate
+
+🔍 Analyzing changes...
+🤖 Generating commit message...
+
+Generated message:
+┌────────────────────────────────────────────┐
+│ feat: update files                         │
+└────────────────────────────────────────────┘
+
+❌ Quality Check Failed:
+  - Message too generic (score: 2/10)
+  - Missing scope
+  - No context in description
+
+🔄 Auto-retry with enhanced prompt...
+
+Generated message (attempt 2/3):
+┌────────────────────────────────────────────┐
+│ feat(api): add user authentication system │
+│                                            │
+│ Implement JWT-based authentication with   │
+│ secure token handling and validation.     │
+└────────────────────────────────────────────┘
+
+✅ Quality Check Passed (score: 8/10)
+```
+
+### Example 23: Constraining Weak Models with Templates
+
+**Use strict templates to guide weaker models:**
+
+```yaml
+# .gocommitrc - For weak models
+ai:
+  provider: "local"
+  model: "codellama:7b"
+
+commit:
+  # Enforce strict structure
+  enforce_conventional: true
+  require_scope: true
+  require_description: true
+  min_description_length: 20
+
+  # Provide clear constraints
+  types: ["feat", "fix", "docs", "chore"]  # Limited options
+
+template:
+  # Force specific format
+  header: "{{type}}({{scope}}): {{summary}}"
+  rules:
+    - "Summary must be < 50 chars"
+    - "Use imperative mood (add, not added)"
+    - "No period at end of summary"
+    - "Scope must match changed files"
+
+# Example prompt enhancement for weak models
+prompt_template: |
+  Analyze these changes and generate a commit message.
+
+  STRICT RULES:
+  1. Format: type(scope): summary
+  2. Type must be one of: feat, fix, docs, chore
+  3. Scope must match the file path
+  4. Summary: imperative mood, < 50 chars
+  5. Be specific, not generic
+
+  Changed files: {{files}}
+  Diff summary: {{diff}}
+
+  Good example: "feat(api): add JWT authentication"
+  Bad example: "update files" ❌
+```
+
+### Example 24: Manual Fallback for Poor Results
+
+**When AI fails, provide easy manual editing:**
+
+```bash
+$ gocommit
+
+🤖 Generating commit message...
+
+Generated message:
+┌────────────────────────────────────────────┐
+│ chore: update stuff                        │
+└────────────────────────────────────────────┘
+
+⚠️  Low confidence: This message seems generic
+
+What would you like to do?
+[A] Accept anyway
+[E] Edit manually
+[R] Regenerate with stricter prompt
+[T] Use template wizard
+[M] Switch to manual mode
+[Q] Quit
+
+> t
+
+📝 Template Wizard Started
+
+Step 1/4: What type of change is this?
+  1. feat     - New feature
+  2. fix      - Bug fix
+  3. docs     - Documentation
+  4. refactor - Code restructuring
+  5. chore    - Maintenance
+> 1
+
+Step 2/4: What scope (component/area)?
+  Detected scopes from changed files:
+  1. api      (src/api/auth.ts)
+  2. database (src/db/users.ts)
+> 1
+
+Step 3/4: Brief summary (imperative mood):
+> add JWT authentication
+
+Step 4/4: Would you like to add a body? (y/N)
+> y
+
+Why did you make this change?
+> Users need secure authentication to access protected endpoints
+
+Generated message:
+┌────────────────────────────────────────────┐
+│ feat(api): add JWT authentication          │
+│                                            │
+│ Users need secure authentication to       │
+│ access protected endpoints                │
+└────────────────────────────────────────────┘
+
+✅ Quality score: 9/10
+[A] Accept  [E] Edit  [R] Retry wizard  [Q] Quit
+```
+
+### Example 25: Progressive Enhancement Strategy
+
+**Start simple, add detail incrementally:**
+
+```yaml
+# Strategy for weak models: Layer improvements
+ai:
+  provider: "local"
+  model: "weak-model"
+
+commit:
+  strategy: "progressive"
+
+  # Step 1: Get basic structure
+  pass_1:
+    prompt: "Generate commit type and scope only"
+    example: "feat(api)"
+
+  # Step 2: Add summary
+  pass_2:
+    prompt: "Add brief summary based on diff"
+    example: "feat(api): add user authentication"
+
+  # Step 3: Add body (optional)
+  pass_3:
+    prompt: "Add why/impact if significant changes"
+    enabled: ${ENABLE_BODY}
+```
+
+**In practice:**
+```bash
+$ gocommit --progressive
+
+Pass 1/3: Determining commit type...
+✓ Type: feat, Scope: api
+
+Pass 2/3: Generating summary...
+✓ Summary: add user authentication
+
+Pass 3/3: Adding context...
+✓ Body: Implement JWT-based auth for secure access
+
+Final result:
+┌────────────────────────────────────────────┐
+│ feat(api): add user authentication         │
+│                                            │
+│ Implement JWT-based auth for secure       │
+│ access to protected endpoints.            │
+└────────────────────────────────────────────┘
+```
+
+### Example 26: Cost vs Quality Optimization
+
+**Smart model selection based on change complexity:**
+
+```yaml
+# .gocommitrc - Adaptive model selection
+ai:
+  strategy: "adaptive"
+
+  # Use cheap model for simple changes
+  simple_changes:
+    model: "gpt-4o-mini"
+    triggers:
+      - files_changed: "<= 3"
+      - lines_changed: "<= 50"
+      - file_types: ["*.md", "*.txt"]
+    cost_per_commit: "$0.001"
+
+  # Use better model for complex changes
+  complex_changes:
+    model: "claude-sonnet-4"
+    triggers:
+      - files_changed: "> 3"
+      - lines_changed: "> 50"
+      - file_types: ["*.go", "*.ts", "*.rs"]
+      - has_tests: true
+    cost_per_commit: "$0.01"
+
+  # Use local model for docs only
+  documentation:
+    model: "local/llama3"
+    triggers:
+      - all_files_match: "docs/*"
+    cost_per_commit: "$0"
+```
+
+**Usage:**
+```bash
+$ gocommit
+
+🔍 Analyzing changes...
+  - 1 file changed (README.md)
+  - 15 lines added
+  - Change type: documentation
+
+💡 Using gpt-4o-mini (cost-optimized for simple docs)
+✓ Generated commit in 2s
+💰 Cost: $0.0008
+
+$ gocommit
+
+🔍 Analyzing changes...
+  - 8 files changed (auth.go, db.go, ...)
+  - 347 lines added
+  - Change type: major feature
+
+💡 Using claude-sonnet-4 (quality-optimized for complex changes)
+✓ Generated commit in 5s
+💰 Cost: $0.012
+```
+
+### Example 27: Learning from Good Commits
+
+**Train weak models with your repository's style:**
+
+```bash
+# Build a style guide from your best commits
+$ gocommit learn --from-history
+
+🔍 Analyzing last 100 commits...
+📊 Detected patterns:
+  - Preferred type: feat (35%), fix (28%), chore (20%)
+  - Average summary length: 48 chars
+  - Scope usage: 89% of commits
+  - Body inclusion: 45% of commits
+  - Common phrases:
+    • "Implement" (42 times)
+    • "Fix issue with" (28 times)
+    • "Update" (31 times)
+
+✅ Created .gocommit-style.json
+
+# Use learned style with weak model
+$ gocommit --style=learned
+
+🤖 Using learned style guide to improve results...
+✓ Commit generated with 92% style match
+```
+
+### Example 28: Human-in-the-Loop for Weak Models
+
+**Always review with weak models:**
+
+```yaml
+# .gocommitrc - Safety for weak models
+ai:
+  provider: "local"
+  model: "tinyllama:1b"  # Very weak model
+
+commit:
+  # Force human review
+  auto_commit: false
+  always_preview: true
+  require_confirmation: true
+
+  # Show quality indicators
+  show_confidence_score: true
+  highlight_issues: true
+  suggest_improvements: true
+```
+
+**Example interaction:**
+```bash
+$ gocommit
+
+🤖 Generating with TinyLlama:1b...
+
+Generated message:
+┌────────────────────────────────────────────┐
+│ update code                                │
+└────────────────────────────────────────────┘
+
+📊 Quality Analysis:
+  Confidence: ⭐⭐ (2/5)
+
+  ⚠️  Issues detected:
+  - Missing commit type (feat, fix, etc.)
+  - Missing scope
+  - Too generic ("update code")
+  - No description of what changed
+
+  💡 Suggestions:
+  - Add type based on changes (looks like "feat")
+  - Add scope from changed files (api, ui, db?)
+  - Be specific: what feature was added?
+
+Would you like to:
+[E] Edit and fix issues manually
+[R] Regenerate with better model
+[T] Use template wizard
+[Q] Quit and try again later
+
+> e
+
+Manual editing mode:
+Type (feat/fix/docs/chore): feat
+Scope: api
+Summary: add JWT authentication endpoints
+Add body? (y/n): y
+Body:
+> Implement login, logout, and token refresh endpoints
+> with bcrypt password hashing and Redis session storage
+
+Final message:
+┌────────────────────────────────────────────┐
+│ feat(api): add JWT authentication endpoints│
+│                                            │
+│ Implement login, logout, and token refresh│
+│ endpoints with bcrypt password hashing and │
+│ Redis session storage                      │
+└────────────────────────────────────────────┘
+
+✅ Commit? (y/n): y
+```
+
+### Example 29: Hybrid Approach - Local + Cloud
+
+**Use local model first, upgrade if needed:**
+
+```yaml
+# .gocommitrc - Hybrid strategy
+ai:
+  strategy: "hybrid"
+
+  # Try local first (free)
+  primary:
+    provider: "local"
+    model: "codellama:7b"
+    timeout: 10s
+
+  # Fallback to cloud if quality is low
+  fallback:
+    provider: "anthropic"
+    model: "claude-sonnet-4"
+    triggers:
+      - confidence: "< 0.6"
+      - quality_score: "< 5"
+      - user_rejected: true
+```
+
+**Usage:**
+```bash
+$ gocommit
+
+🔄 Trying local model first...
+✓ Generated in 3s
+
+Generated message (local):
+┌────────────────────────────────────────────┐
+│ feat: add auth                             │
+└────────────────────────────────────────────┘
+
+📊 Confidence: 45% (LOW)
+
+💡 This looks generic. Upgrade to cloud model? (y/n): y
+
+🔄 Upgrading to Claude Sonnet 4...
+✓ Generated in 4s (cost: $0.008)
+
+Generated message (cloud):
+┌────────────────────────────────────────────┐
+│ feat(api): implement JWT authentication    │
+│                                            │
+│ Add secure login/logout with JWT tokens,  │
+│ bcrypt hashing, and Redis sessions.       │
+└────────────────────────────────────────────┘
+
+📊 Confidence: 95% (HIGH)
+
+[A] Accept  [E] Edit  [Q] Quit
 ```
 
 ---
