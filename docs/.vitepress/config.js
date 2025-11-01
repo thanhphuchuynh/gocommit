@@ -18,14 +18,42 @@ export default {
 
     sidebar: [
       {
-        text: 'Documentation',
+        text: 'Getting Started',
         items: [
           { text: 'Overview', link: '/README' },
-          { text: 'Delayed Commit', link: '/README_DELAYED_COMMIT' },
-          { text: 'Architecture', link: '/DELAYED_COMMIT_ARCHITECTURE' },
-          { text: 'Refactoring', link: '/REFACTORING_SUMMARY' },
-          { text: 'Design', link: '/REFACTORING_DESIGN' },
+          { text: 'Installation', link: '/INSTALL' }
+        ]
+      },
+      {
+        text: 'Planning & Development',
+        items: [
+          { text: 'Roadmap & Philosophy', link: '/todo/doto' },
+          { text: 'Usage Examples', link: '/todo/EXAMPLES' }
+        ]
+      },
+      {
+        text: 'Architecture',
+        items: [
+          { text: 'Delayed Commit Architecture', link: '/DELAYED_COMMIT_ARCHITECTURE' },
+          { text: 'Application Flow', link: '/FLOW' },
+          { text: 'JSON Schema', link: '/JSON_SCHEMA_IMPLEMENTATION' },
           { text: 'Parsing Fix', link: '/PARSING_FIX_SUMMARY' }
+        ]
+      },
+      {
+        text: 'Refactoring',
+        items: [
+          { text: 'Summary', link: '/REFACTORING_SUMMARY' },
+          { text: 'Design', link: '/REFACTORING_DESIGN' }
+        ]
+      },
+      {
+        text: 'Integration',
+        items: [
+          { text: 'GitHub Actions', link: '/README_GITHUB_ACTIONS' },
+          { text: 'Delayed Commit Setup', link: '/README_DELAYED_COMMIT' },
+          { text: 'Logging Guide', link: '/README_LOGGING' },
+          { text: 'Logging Config', link: '/README_LOGGING_CONFIG' }
         ]
       }
     ]
