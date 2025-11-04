@@ -17,6 +17,7 @@ import (
 type WorkflowConfig struct {
 	Detailed bool
 	UseIcons bool
+	Auto     bool // Skip interactive prompt and commit directly
 }
 
 // Workflow orchestrates the commit process
@@ -71,6 +72,47 @@ func (w *Workflow) Execute(ctx context.Context) error {
 		return fmt.Errorf("failed to select commit message: %w", err)
 	}
 
+	// 4.5. Interactive prompt (unless --auto flag is set)
+	if !w.config.Auto {
+		for {
+			result, err := ui.ShowInteractivePrompt(commitMsg, diff)
+			if err != nil {
+				return fmt.Errorf("interactive prompt failed: %w", err)
+			}
+
+			switch result.Action {
+			case ui.ActionAccept:
+				commitMsg = result.Message
+				goto commitPhase
+			case ui.ActionEdit:
+				commitMsg = result.Message
+				goto commitPhase
+			case ui.ActionRegenerate:
+				// Regenerate messages with AI
+				fmt.Println("🔄 Regenerating commit messages...")
+				resp, err = w.provider.GenerateMessages(ctx, req)
+				if err != nil {
+					return fmt.Errorf("failed to regenerate commit messages: %w", err)
+				}
+				messages = resp.Messages
+
+				// Show selector again
+				commitMsg, err = ui.ShowMessageSelector(messages, "Select a commit message:")
+				if err != nil {
+					return fmt.Errorf("failed to select commit message: %w", err)
+				}
+				// Loop back to show interactive prompt again
+				continue
+			case ui.ActionShowDiff:
+				// Diff is already shown in the prompt, just continue the loop
+				continue
+			case ui.ActionQuit:
+				return fmt.Errorf("commit cancelled by user")
+			}
+		}
+	}
+
+commitPhase:
 	// Get the full AI response for logging
 	aiResponse := strings.Join(messages, "\n")
 

@@ -108,7 +108,7 @@ func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *Generate
 		// For other models (Gemini, Claude, Llama), rely on strong prompting
 		// Don't set response_format as many models don't support it
 	}
-
+	// comment
 	requestBody := OpenRouterRequest{
 		Model:          p.model,
 		ResponseFormat: responseFormat,
