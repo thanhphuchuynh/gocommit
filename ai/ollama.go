@@ -26,12 +26,12 @@ type OllamaGenerateRequest struct {
 
 // OllamaGenerateResponse represents the response format from Ollama API
 type OllamaGenerateResponse struct {
-	Model     string `json:"model"`
-	Response  string `json:"response"`
-	Done      bool   `json:"done"`
-	Context   []int  `json:"context,omitempty"`
-	TotalDuration int64 `json:"total_duration,omitempty"`
-	Error     string `json:"error,omitempty"`
+	Model         string `json:"model"`
+	Response      string `json:"response"`
+	Done          bool   `json:"done"`
+	Context       []int  `json:"context,omitempty"`
+	TotalDuration int64  `json:"total_duration,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 // OllamaListResponse represents the response for listing models

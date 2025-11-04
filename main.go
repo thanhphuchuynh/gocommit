@@ -38,6 +38,8 @@ func main() {
 	enableDelayedFlag := flag.Bool("enable-delayed", false, "Enable delayed commit feature")
 	disableDelayedFlag := flag.Bool("disable-delayed", false, "Disable delayed commit feature")
 	setModelFlag := flag.String("set-model", "", "Set AI model for OpenRouter (e.g., anthropic/claude-3.5-sonnet)")
+	autoFlag := flag.Bool("auto", false, "Auto-commit without interactive prompt (also -y)")
+	yFlag := flag.Bool("y", false, "Auto-commit without interactive prompt (alias for --auto)")
 	flag.Parse()
 
 	// Handle configuration commands
@@ -138,6 +140,7 @@ func main() {
 	workflow := commit.NewWorkflow(commit.WorkflowConfig{
 		Detailed: *detailedFlag,
 		UseIcons: *iconFlag,
+		Auto:     *autoFlag || *yFlag, // Enable auto mode if either flag is set
 	}, provider)
 
 	if err := workflow.Execute(context.Background()); err != nil {
