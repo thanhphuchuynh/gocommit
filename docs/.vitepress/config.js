@@ -1,7 +1,7 @@
 export default {
   title: 'GoCommit Documentation',
   description: 'AI-powered Git commit message generator',
-  base: '/gocommit/',
+  base: '/',
 
   // Ignore dead links to Go source files
   // These are IDE reference links (e.g., ./config/config.go:14) that don't work as web links

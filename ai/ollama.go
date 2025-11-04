@@ -10,114 +10,96 @@ import (
 	"strings"
 )
 
-// OpenRouterProvider implements the Provider interface for OpenRouter API
-type OpenRouterProvider struct {
-	apiKey string
-	model  string // e.g., "anthropic/claude-3.5-sonnet", "openai/gpt-4"
-	client *http.Client
+// OllamaProvider implements the Provider interface for Ollama local AI
+type OllamaProvider struct {
+	endpoint string // e.g., "http://localhost:11434"
+	model    string // e.g., "codellama:7b", "llama3:8b", "mistral:7b"
+	client   *http.Client
 }
 
-// OpenRouterRequest represents the request format for OpenRouter API
-type OpenRouterRequest struct {
-	Model          string                 `json:"model"`
-	Messages       []OpenRouterMessage    `json:"messages"`
-	ResponseFormat *OpenRouterResponseFmt `json:"response_format,omitempty"`
+// OllamaGenerateRequest represents the request format for Ollama API
+type OllamaGenerateRequest struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+	Stream bool   `json:"stream"`
 }
 
-// OpenRouterResponseFmt specifies the format for structured outputs
-type OpenRouterResponseFmt struct {
-	Type       string                `json:"type"`
-	JSONSchema *OpenRouterJSONSchema `json:"json_schema,omitempty"`
+// OllamaGenerateResponse represents the response format from Ollama API
+type OllamaGenerateResponse struct {
+	Model     string `json:"model"`
+	Response  string `json:"response"`
+	Done      bool   `json:"done"`
+	Context   []int  `json:"context,omitempty"`
+	TotalDuration int64 `json:"total_duration,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
-// OpenRouterJSONSchema defines the JSON schema for structured output
-type OpenRouterJSONSchema struct {
-	Name   string         `json:"name"`
-	Schema map[string]any `json:"schema"`
-	Strict bool           `json:"strict"`
+// OllamaListResponse represents the response for listing models
+type OllamaListResponse struct {
+	Models []OllamaModel `json:"models"`
 }
 
-// OpenRouterMessage represents a message in the request
-type OpenRouterMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+// OllamaModel represents a model in Ollama
+type OllamaModel struct {
+	Name       string `json:"name"`
+	ModifiedAt string `json:"modified_at"`
+	Size       int64  `json:"size"`
 }
 
-// OpenRouterResponse represents the response format from OpenRouter API
-type OpenRouterResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Error *struct {
-		Message string `json:"message"`
-		Code    string `json:"code"`
-	} `json:"error,omitempty"`
-}
-
-// NewOpenRouterProvider creates a new OpenRouter provider
-func NewOpenRouterProvider(apiKey, model string) *OpenRouterProvider {
+// NewOllamaProvider creates a new Ollama provider
+func NewOllamaProvider(endpoint, model string) *OllamaProvider {
+	if endpoint == "" {
+		endpoint = "http://localhost:11434" // default Ollama endpoint
+	}
 	if model == "" {
-		model = "anthropic/claude-3.5-sonnet" // default model
+		model = "codellama:7b" // default model
 	}
-	return &OpenRouterProvider{
-		apiKey: apiKey,
-		model:  model,
-		client: &http.Client{},
+	return &OllamaProvider{
+		endpoint: endpoint,
+		model:    model,
+		client:   &http.Client{},
 	}
 }
 
-// GenerateMessages generates commit messages using OpenRouter API
-func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error) {
+// Name returns the provider name
+func (p *OllamaProvider) Name() string {
+	return "ollama"
+}
+
+// ValidateConfig validates the Ollama configuration
+func (p *OllamaProvider) ValidateConfig() error {
+	if p.endpoint == "" {
+		return fmt.Errorf("Ollama endpoint is required")
+	}
+	if p.model == "" {
+		return fmt.Errorf("Ollama model is required")
+	}
+
+	// Try to ping the Ollama server
+	resp, err := p.client.Get(p.endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to connect to Ollama at %s: %v. Is Ollama running?", p.endpoint, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Ollama server returned status %d. Is Ollama running at %s?", resp.StatusCode, p.endpoint)
+	}
+
+	return nil
+}
+
+// GenerateMessages generates commit messages using Ollama API
+func (p *OllamaProvider) GenerateMessages(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error) {
 	// Get the appropriate prompt template
 	promptTemplate := GetPromptTemplate(req.Detailed, req.UseIcons)
 	prompt := fmt.Sprintf(promptTemplate, req.Diff, req.LastCommit)
 
-	// Prepare response format for JSON structured output (except for detailed non-icon mode)
-	// Only enable for models that support structured outputs
-	var responseFormat *OpenRouterResponseFmt
-	if !(req.Detailed && !req.UseIcons) {
-		useStrictSchema := true
-
-		if useStrictSchema {
-			// Use strict JSON schema for OpenAI models that support it
-			responseFormat = &OpenRouterResponseFmt{
-				Type: "json_schema",
-				JSONSchema: &OpenRouterJSONSchema{
-					Name: "commit_messages",
-					Schema: map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"messages": map[string]any{
-								"type": "array",
-								"items": map[string]any{
-									"type": "string",
-								},
-								"minItems": 3,
-								"maxItems": 3,
-							},
-						},
-						"required":             []string{"messages"},
-						"additionalProperties": false,
-					},
-					Strict: true,
-				},
-			}
-		}
-		// For other models (Gemini, Claude, Llama), rely on strong prompting
-		// Don't set response_format as many models don't support it
-	}
-	// comment
-	requestBody := OpenRouterRequest{
-		Model:          p.model,
-		ResponseFormat: responseFormat,
-		Messages: []OpenRouterMessage{
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
+	// Create request body
+	requestBody := OllamaGenerateRequest{
+		Model:  p.model,
+		Prompt: prompt,
+		Stream: false, // We want a single response
 	}
 
 	jsonData, err := json.Marshal(requestBody)
@@ -126,20 +108,18 @@ func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *Generate
 	}
 
 	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.endpoint+"/api/generate", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	// Set headers
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("HTTP-Referer", "https://github.com/thanhphuchuynh/gocommit")
 
 	// Send request
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request to Ollama: %v. Is Ollama running?", err)
 	}
 	defer resp.Body.Close()
 
@@ -151,33 +131,30 @@ func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *Generate
 
 	// Check for non-200 status codes
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("Ollama API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Log the response body
-
 	// Parse response
-	var openRouterResp OpenRouterResponse
-	if err := json.Unmarshal(body, &openRouterResp); err != nil {
+	var ollamaResp OllamaGenerateResponse
+	if err := json.Unmarshal(body, &ollamaResp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
 	// Check for API errors
-	if openRouterResp.Error != nil {
-		return nil, fmt.Errorf("API error: %s (code: %s)", openRouterResp.Error.Message, openRouterResp.Error.Code)
+	if ollamaResp.Error != "" {
+		return nil, fmt.Errorf("Ollama API error: %s", ollamaResp.Error)
 	}
 
 	// Extract content from response
-	if len(openRouterResp.Choices) == 0 || openRouterResp.Choices[0].Message.Content == "" {
-		return nil, fmt.Errorf("no content generated")
+	content := ollamaResp.Response
+	if content == "" {
+		return nil, fmt.Errorf("no content generated by Ollama")
 	}
-
-	content := openRouterResp.Choices[0].Message.Content
 
 	// Parse the response based on mode
 	messages, err := p.parseResponse(content, req.Detailed, req.UseIcons)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse Ollama response: %v", err)
 	}
 
 	return &GenerateResponse{
@@ -186,29 +163,9 @@ func (p *OpenRouterProvider) GenerateMessages(ctx context.Context, req *Generate
 	}, nil
 }
 
-// Name returns the provider name
-func (p *OpenRouterProvider) Name() string {
-	return "openrouter"
-}
-
-// ValidateConfig validates the OpenRouter configuration
-func (p *OpenRouterProvider) ValidateConfig() error {
-	if p.apiKey == "" {
-		return fmt.Errorf("API key is required")
-	}
-	if p.model == "" {
-		return fmt.Errorf("model is required")
-	}
-	// OpenRouter API keys typically start with "sk-or-"
-	if !strings.HasPrefix(p.apiKey, "sk-or-") && !strings.HasPrefix(p.apiKey, "sk-") {
-		return fmt.Errorf("invalid API key format: OpenRouter API keys typically start with 'sk-or-' or 'sk-'")
-	}
-	return nil
-}
-
 // parseResponse parses the AI response into commit messages
-// This method follows the same logic as GeminiProvider for consistency
-func (p *OpenRouterProvider) parseResponse(text string, detailed, useIcons bool) ([]string, error) {
+// This method follows the same logic as GeminiProvider and OpenRouterProvider for consistency
+func (p *OllamaProvider) parseResponse(text string, detailed, useIcons bool) ([]string, error) {
 	cleanText := strings.TrimSpace(text)
 	var finalMessages []string
 
@@ -243,7 +200,7 @@ func (p *OpenRouterProvider) parseResponse(text string, detailed, useIcons bool)
 }
 
 // parseDetailedResponse parses detailed format responses (plain text with --- separators)
-func (p *OpenRouterProvider) parseDetailedResponse(cleanText string) []string {
+func (p *OllamaProvider) parseDetailedResponse(cleanText string) []string {
 	var finalMessages []string
 
 	// Split by --- separators and extract commit messages
@@ -283,7 +240,6 @@ func (p *OpenRouterProvider) parseDetailedResponse(cleanText string) []string {
 				currentMessage.WriteString(line)
 			} else if currentMessage.Len() > 0 {
 				// Add to current message body
-				// Check if current message already ends with newline
 				currentStr := currentMessage.String()
 				if !strings.HasSuffix(currentStr, "\n") {
 					currentMessage.WriteString("\n")
@@ -308,7 +264,7 @@ func (p *OpenRouterProvider) parseDetailedResponse(cleanText string) []string {
 }
 
 // isCommitMessageStart checks if a line starts with a commit type (with or without emoji)
-func (p *OpenRouterProvider) isCommitMessageStart(line string) bool {
+func (p *OllamaProvider) isCommitMessageStart(line string) bool {
 	// Remove emoji if present to check for commit type
 	lineWithoutEmoji := line
 
@@ -343,7 +299,7 @@ func (p *OpenRouterProvider) isCommitMessageStart(line string) bool {
 }
 
 // parseJSONResponse parses JSON format responses
-func (p *OpenRouterProvider) parseJSONResponse(cleanText string) []string {
+func (p *OllamaProvider) parseJSONResponse(cleanText string) []string {
 	// First try to extract messages from plain text format (fallback for non-compliant models)
 	if strings.Contains(cleanText, "```") && !strings.Contains(cleanText, "{") {
 		// Model returned plain text in code blocks instead of JSON
@@ -445,7 +401,7 @@ func (p *OpenRouterProvider) parseJSONResponse(cleanText string) []string {
 
 // parseTextCodeBlock extracts commit messages from plain text in code blocks
 // Fallback for models that don't follow JSON format instructions
-func (p *OpenRouterProvider) parseTextCodeBlock(text string) []string {
+func (p *OllamaProvider) parseTextCodeBlock(text string) []string {
 	var messages []string
 
 	// Extract content from code block
@@ -484,4 +440,34 @@ func (p *OpenRouterProvider) parseTextCodeBlock(text string) []string {
 	}
 
 	return messages
+}
+
+// ListModels lists all available Ollama models
+func (p *OllamaProvider) ListModels(ctx context.Context) ([]OllamaModel, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", p.endpoint+"/api/tags", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list models: %v. Is Ollama running?", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to list models: %s", string(body))
+	}
+
+	var listResp OllamaListResponse
+	if err := json.Unmarshal(body, &listResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	return listResp.Models, nil
 }

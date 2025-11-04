@@ -38,6 +38,8 @@ func main() {
 	enableDelayedFlag := flag.Bool("enable-delayed", false, "Enable delayed commit feature")
 	disableDelayedFlag := flag.Bool("disable-delayed", false, "Disable delayed commit feature")
 	setModelFlag := flag.String("set-model", "", "Set AI model for OpenRouter (e.g., anthropic/claude-3.5-sonnet)")
+	autoFlag := flag.Bool("auto", false, "Auto-commit without interactive prompt (also -y)")
+	yFlag := flag.Bool("y", false, "Auto-commit without interactive prompt (alias for --auto)")
 	flag.Parse()
 
 	// Handle configuration commands
@@ -96,22 +98,31 @@ func main() {
 		return
 	}
 
-	// Load API key
-	apiKey, err := config.GetAPIKey()
-	if err != nil {
-		log.Fatalf("Error: %v", err)
-	}
-
 	// Get provider configuration (defaults to "gemini")
 	providerName, err := config.GetProvider()
 	if err != nil {
 		log.Fatalf("Error getting provider: %v", err)
 	}
 
-	// Get model configuration (optional, used by OpenRouter)
+	// Load API key (not needed for Ollama)
+	var apiKey string
+	if providerName != "ollama" {
+		apiKey, err = config.GetAPIKey()
+		if err != nil {
+			log.Fatalf("Error: %v", err)
+		}
+	}
+
+	// Get model configuration (optional, used by OpenRouter and Ollama)
 	model, err := config.GetModel()
 	if err != nil {
 		log.Fatalf("Error getting model: %v", err)
+	}
+
+	// Get endpoint configuration (optional, used by Ollama)
+	endpoint, err := config.GetEndpoint()
+	if err != nil {
+		log.Fatalf("Error getting endpoint: %v", err)
 	}
 
 	// Create AI provider
@@ -119,6 +130,7 @@ func main() {
 		Provider: providerName,
 		APIKey:   apiKey,
 		Model:    model,
+		Endpoint: endpoint,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create AI provider: %v", err)
@@ -128,6 +140,7 @@ func main() {
 	workflow := commit.NewWorkflow(commit.WorkflowConfig{
 		Detailed: *detailedFlag,
 		UseIcons: *iconFlag,
+		Auto:     *autoFlag || *yFlag, // Enable auto mode if either flag is set
 	}, provider)
 
 	if err := workflow.Execute(context.Background()); err != nil {

@@ -31,12 +31,20 @@ This roadmap outlines the evolution of **GoCommit**, from a simple AI-powered co
 
 ---
 
-## 🚀 Phase 1 — Interactive Mode
+## 🚀 Phase 1 — Interactive Mode ✅ COMPLETED
 ### 🎯 Goal: Improve usability & feedback loop
-- [ ] Interactive prompt after AI suggestion:
-  - Accept / Edit / Re-generate (alternate tone or shorter version).  
-  - Preview diff + generated message side-by-side.  
-- [ ] Optional “auto-commit” flag for fast workflows.
+- [x] Interactive prompt after AI suggestion:
+  - Accept / Edit / Re-generate (alternate tone or shorter version).
+  - Preview diff + generated message side-by-side.
+- [x] Optional "auto-commit" flag for fast workflows.
+
+**Implementation Details:**
+- Interactive prompt with 5 actions: Accept, Edit, Regenerate, Diff, Quit
+- Split-screen diff view showing changes and message side-by-side
+- Regeneration loop that generates → select → interactive → repeat
+- Color-coded diff display (green +, red -, cyan @@)
+- `--auto` and `-y` flags to skip interactive prompt
+- Seamless integration in workflow with goto-based flow control
 
 🧠 _"Before you commit, consider if your change has a place in the story."_
 
