@@ -108,10 +108,16 @@ func main() {
 		log.Fatalf("Error getting provider: %v", err)
 	}
 
-	// Get model configuration (optional, used by OpenRouter)
+	// Get model configuration (optional, used by OpenRouter and Ollama)
 	model, err := config.GetModel()
 	if err != nil {
 		log.Fatalf("Error getting model: %v", err)
+	}
+
+	// Get endpoint configuration (optional, used by Ollama)
+	endpoint, err := config.GetEndpoint()
+	if err != nil {
+		log.Fatalf("Error getting endpoint: %v", err)
 	}
 
 	// Create AI provider
@@ -119,6 +125,7 @@ func main() {
 		Provider: providerName,
 		APIKey:   apiKey,
 		Model:    model,
+		Endpoint: endpoint,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create AI provider: %v", err)

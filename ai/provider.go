@@ -28,9 +28,10 @@ type GenerateResponse struct {
 
 // Config holds AI provider configuration
 type Config struct {
-	Provider string // "gemini" or "openrouter"
+	Provider string // "gemini", "openrouter", or "ollama"
 	APIKey   string
 	Model    string // optional, provider-specific
+	Endpoint string // optional, for Ollama (e.g., "http://localhost:11434")
 }
 
 // NewProvider creates an AI provider based on configuration
@@ -43,6 +44,8 @@ func NewProvider(cfg Config) (Provider, error) {
 			return nil, fmt.Errorf("OpenRouter API key is required")
 		}
 		return NewOpenRouterProvider(cfg.APIKey, cfg.Model), nil
+	case "ollama":
+		return NewOllamaProvider(cfg.Endpoint, cfg.Model), nil
 	default:
 		return nil, fmt.Errorf("unknown provider: %s", cfg.Provider)
 	}

@@ -23,8 +23,9 @@ type DelayedCommitConfig struct {
 
 type Config struct {
 	APIKey         string              `json:"api_key"`
-	Provider       string              `json:"provider"` // "gemini" or "openrouter", default: "gemini"
-	Model          string              `json:"model"`    // Model name for provider (e.g., "anthropic/claude-3.5-sonnet" for OpenRouter)
+	Provider       string              `json:"provider"` // "gemini", "openrouter", or "ollama", default: "gemini"
+	Model          string              `json:"model"`    // Model name for provider (e.g., "anthropic/claude-3.5-sonnet" for OpenRouter, "codellama:7b" for Ollama)
+	Endpoint       string              `json:"endpoint"` // Ollama endpoint (e.g., "http://localhost:11434"), optional
 	LoggingEnabled bool                `json:"logging_enabled"`
 	IconMode       bool                `json:"icon_mode"`
 	DelayedCommit  DelayedCommitConfig `json:"delayed_commit"`
@@ -164,6 +165,25 @@ func SetModel(model string) error {
 	return SaveConfig(config)
 }
 
+func GetEndpoint() (string, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return "", err
+	}
+
+	return config.Endpoint, nil
+}
+
+func SetEndpoint(endpoint string) error {
+	config, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	config.Endpoint = endpoint
+	return SaveConfig(config)
+}
+
 func IsLoggingEnabled() (bool, error) {
 	config, err := LoadConfig()
 	if err != nil {
@@ -299,7 +319,8 @@ func HandleConfigureAPIKey() error {
 	fmt.Println("Select AI Provider:")
 	fmt.Println("  1. Gemini (Google)")
 	fmt.Println("  2. OpenRouter (Claude, GPT-4, Llama, etc.)")
-	fmt.Print("\nEnter choice (1 or 2) [1]: ")
+	fmt.Println("  3. Ollama (Local AI)")
+	fmt.Print("\nEnter choice (1, 2, or 3) [1]: ")
 
 	reader := bufio.NewReader(os.Stdin)
 	choice, _ := reader.ReadString('\n')
@@ -309,29 +330,34 @@ func HandleConfigureAPIKey() error {
 	provider := "gemini"
 	if choice == "2" {
 		provider = "openrouter"
+	} else if choice == "3" {
+		provider = "ollama"
 	}
 
-	// Step 2: Enter API key
-	providerName := "Gemini"
-	if provider == "openrouter" {
-		providerName = "OpenRouter"
-	}
-	fmt.Printf("\nEnter %s API key: ", providerName)
-	apiKey, _ := reader.ReadString('\n')
-	apiKey = strings.TrimSpace(apiKey)
-
-	if apiKey == "" {
-		return fmt.Errorf("API key cannot be empty")
-	}
-
-	// Validate API key based on provider
-	if provider == "gemini" {
-		if err := ValidateGeminiAPIKey(apiKey); err != nil {
-			return err
+	// Step 2: Enter API key (skip for Ollama)
+	var apiKey string
+	if provider != "ollama" {
+		providerName := "Gemini"
+		if provider == "openrouter" {
+			providerName = "OpenRouter"
 		}
-	} else if provider == "openrouter" {
-		if err := ValidateOpenRouterAPIKey(apiKey); err != nil {
-			return err
+		fmt.Printf("\nEnter %s API key: ", providerName)
+		apiKey, _ = reader.ReadString('\n')
+		apiKey = strings.TrimSpace(apiKey)
+
+		if apiKey == "" {
+			return fmt.Errorf("API key cannot be empty")
+		}
+
+		// Validate API key based on provider
+		if provider == "gemini" {
+			if err := ValidateGeminiAPIKey(apiKey); err != nil {
+				return err
+			}
+		} else if provider == "openrouter" {
+			if err := ValidateOpenRouterAPIKey(apiKey); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -354,6 +380,44 @@ func HandleConfigureAPIKey() error {
 				return fmt.Errorf("error setting model: %w", err)
 			}
 		}
+	} else if provider == "ollama" {
+		// Configure Ollama endpoint
+		fmt.Println("\nConfigure Ollama:")
+		fmt.Print("Enter Ollama endpoint [http://localhost:11434]: ")
+		endpoint, _ := reader.ReadString('\n')
+		endpoint = strings.TrimSpace(endpoint)
+
+		if endpoint == "" {
+			endpoint = "http://localhost:11434"
+		}
+
+		if err := SetEndpoint(endpoint); err != nil {
+			return fmt.Errorf("error setting endpoint: %w", err)
+		}
+
+		// Configure Ollama model
+		fmt.Println("\nConfigure Ollama model:")
+		fmt.Println("  Recommended models:")
+		fmt.Println("    - codellama:7b (default, 3.8GB)")
+		fmt.Println("    - llama3:8b (4.7GB)")
+		fmt.Println("    - mistral:7b (4.1GB)")
+		fmt.Println("    - deepseek-coder:6.7b (3.8GB)")
+		fmt.Println("    - codellama:13b (7.4GB, better quality)")
+		fmt.Print("\nEnter model name [codellama:7b]: ")
+
+		model, _ := reader.ReadString('\n')
+		model = strings.TrimSpace(model)
+
+		if model == "" {
+			model = "codellama:7b"
+		}
+
+		if err := SetModel(model); err != nil {
+			return fmt.Errorf("error setting model: %w", err)
+		}
+
+		fmt.Println("\nℹ️  Make sure Ollama is running and the model is pulled:")
+		fmt.Printf("   ollama pull %s\n", model)
 	}
 
 	// Save configuration
@@ -361,8 +425,10 @@ func HandleConfigureAPIKey() error {
 		return fmt.Errorf("error setting provider: %w", err)
 	}
 
-	if err := SetAPIKey(apiKey); err != nil {
-		return fmt.Errorf("error saving API key: %w", err)
+	if provider != "ollama" {
+		if err := SetAPIKey(apiKey); err != nil {
+			return fmt.Errorf("error saving API key: %w", err)
+		}
 	}
 
 	fmt.Printf("\n✓ Configuration saved successfully!\n")
@@ -374,6 +440,11 @@ func HandleConfigureAPIKey() error {
 		} else {
 			fmt.Printf("  Model: anthropic/claude-3.5-sonnet (default)\n")
 		}
+	} else if provider == "ollama" {
+		endpoint, _ := GetEndpoint()
+		model, _ := GetModel()
+		fmt.Printf("  Endpoint: %s\n", endpoint)
+		fmt.Printf("  Model: %s\n", model)
 	}
 	fmt.Println("\nYou can now use 'gocommit' to generate commit messages.")
 
