@@ -1,14 +1,16 @@
 # GoCommit
 
-An AI-powered git commit message generator supporting multiple AI providers (Google Gemini and OpenRouter). This tool automatically generates meaningful commit messages based on your staged changes, following conventional commit formats, with comprehensive logging for prompt analysis and improvement.
+An AI-powered git commit message generator supporting multiple AI providers (Google Gemini, OpenRouter, and Ollama). This tool automatically generates meaningful commit messages based on your staged changes, following conventional commit formats, with comprehensive logging for prompt analysis and improvement.
 
 📚 **[View Full Documentation](https://thanhphuchuynh.github.io/gocommit/)**
 
 ## Features
 
 - Automatically analyzes git diff of staged changes
-- Generates meaningful commit messages using AI (Gemini or OpenRouter)
-- Supports multiple AI models through OpenRouter (Claude, GPT-4, Llama, etc.)
+- Generates meaningful commit messages using AI (Gemini, OpenRouter, or Ollama)
+- Supports multiple AI models:
+  - **Cloud**: OpenRouter (Claude, GPT-4, Llama, etc.)
+  - **Local**: Ollama (CodeLlama, Llama3, Mistral, etc.) - 100% free & private
 - Follows conventional commit format (type(scope): description)
 - Ensures commit message quality and consistency
 - Secure API key configuration and validation
@@ -22,9 +24,10 @@ An AI-powered git commit message generator supporting multiple AI providers (Goo
 
 - Go 1.21 or higher
 - Git (optional, for manual installation)
-- API key from one of the supported providers:
+- **One of the following**:
   - **Gemini**: API key starting with "AIza" (39 characters)
   - **OpenRouter**: API key starting with "sk-or-" or "sk-"
+  - **Ollama**: [Local installation](https://ollama.ai) (no API key needed, 100% free)
 
 ## Installation
 
@@ -90,14 +93,18 @@ gocommit --config
 The tool will guide you through:
 
 1. **Select AI Provider**:
-   - Choose between Gemini (Google) or OpenRouter (Claude, GPT-4, Llama, etc.)
+   - **Gemini** (Google) - Cloud-based, requires API key
+   - **OpenRouter** - Access to Claude, GPT-4, Llama, etc., requires API key
+   - **Ollama** - Local AI, 100% free, no API key needed
 
-2. **Enter API Key**:
+2. **Enter API Key** (Gemini/OpenRouter only):
    - For Gemini: Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
    - For OpenRouter: Get your API key from [openrouter.ai](https://openrouter.ai/)
+   - For Ollama: No API key needed
 
-3. **Configure Model** (OpenRouter only):
-   - Optionally select a specific model or use the default (Claude 3.5 Sonnet)
+3. **Configure Model**:
+   - **OpenRouter**: Select model (default: Claude 3.5 Sonnet)
+   - **Ollama**: Select local model (default: CodeLlama 7B)
 
 **Example Configuration Flow:**
 
@@ -154,6 +161,112 @@ When using OpenRouter, you have access to various AI models:
   - `meta-llama/llama-3.1-405b-instruct`
 
 - **And many more** - see [OpenRouter models](https://openrouter.ai/models) for the complete list
+
+### Using Ollama (Local AI)
+
+**Ollama** allows you to run AI models locally on your machine - 100% free, completely private, and works offline!
+
+#### Prerequisites
+
+1. **Install Ollama**: Visit [ollama.ai](https://ollama.ai) and install for your platform
+2. **Pull a model**: Download a model of your choice
+
+```bash
+# Recommended models for commit messages
+ollama pull codellama:7b      # 3.8GB - Good balance (default)
+ollama pull llama3:8b          # 4.7GB - Best quality
+ollama pull mistral:7b         # 4.1GB - Fast
+ollama pull deepseek-coder:6.7b  # 3.8GB - Code-focused
+ollama pull codellama:13b      # 7.4GB - Higher quality, slower
+```
+
+#### Setup
+
+```bash
+# 1. Make sure Ollama is running
+ollama serve  # Usually runs automatically after installation
+
+# 2. Configure gocommit for Ollama
+gocommit --config
+
+# Select option 3 (Ollama)
+# Choose your model or press Enter for default (codellama:7b)
+```
+
+#### Configuration Example
+
+```bash
+$ gocommit --config
+
+=== GoCommit Configuration ===
+
+Select AI Provider:
+  1. Gemini (Google)
+  2. OpenRouter (Claude, GPT-4, Llama, etc.)
+  3. Ollama (Local AI)
+
+Enter choice (1, 2, or 3) [1]: 3
+
+Configure Ollama:
+Enter Ollama endpoint [http://localhost:11434]:
+
+Configure Ollama model:
+  Recommended models:
+    - codellama:7b (default, 3.8GB)
+    - llama3:8b (4.7GB)
+    - mistral:7b (4.1GB)
+    - deepseek-coder:6.7b (3.8GB)
+    - codellama:13b (7.4GB, better quality)
+
+Enter model name [codellama:7b]: llama3:8b
+
+ℹ️  Make sure Ollama is running and the model is pulled:
+   ollama pull llama3:8b
+
+✓ Configuration saved successfully!
+  Provider: ollama
+  Endpoint: http://localhost:11434
+  Model: llama3:8b
+```
+
+#### Model Comparison
+
+| Model | Size | Quality | Speed | Use Case |
+|-------|------|---------|-------|----------|
+| `codellama:7b` | 3.8GB | ⭐⭐⭐ | Fast | General commits (default) |
+| `llama3:8b` | 4.7GB | ⭐⭐⭐⭐ | Fast | Best balanced option |
+| `mistral:7b` | 4.1GB | ⭐⭐⭐ | Very Fast | Quick commits |
+| `deepseek-coder:6.7b` | 3.8GB | ⭐⭐⭐⭐ | Medium | Code-focused |
+| `codellama:13b` | 7.4GB | ⭐⭐⭐⭐ | Slower | High quality |
+
+#### Benefits of Ollama
+
+- ✅ **$0 Cost** - Completely free forever
+- ✅ **100% Private** - Data never leaves your machine
+- ✅ **Offline** - Works without internet
+- ✅ **Fast** - No network latency
+- ✅ **No API Limits** - Unlimited usage
+- ✅ **Open Source** - Full transparency
+
+#### Troubleshooting
+
+**Ollama not responding?**
+```bash
+# Check if Ollama is running
+curl http://localhost:11434
+
+# If not, start it
+ollama serve
+```
+
+**Model not found?**
+```bash
+# Pull the model first
+ollama pull codellama:7b
+
+# List installed models
+ollama list
+```
 
 ### Changing Configuration
 
