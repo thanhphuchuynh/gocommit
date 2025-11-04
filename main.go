@@ -96,16 +96,19 @@ func main() {
 		return
 	}
 
-	// Load API key
-	apiKey, err := config.GetAPIKey()
-	if err != nil {
-		log.Fatalf("Error: %v", err)
-	}
-
 	// Get provider configuration (defaults to "gemini")
 	providerName, err := config.GetProvider()
 	if err != nil {
 		log.Fatalf("Error getting provider: %v", err)
+	}
+
+	// Load API key (not needed for Ollama)
+	var apiKey string
+	if providerName != "ollama" {
+		apiKey, err = config.GetAPIKey()
+		if err != nil {
+			log.Fatalf("Error: %v", err)
+		}
 	}
 
 	// Get model configuration (optional, used by OpenRouter and Ollama)
